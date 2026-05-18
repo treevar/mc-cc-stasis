@@ -1,16 +1,26 @@
-local config = require("config")
-local util = require("util")
+local Config = require("config")
+local Log = require("log")
+local Util = require("util")
+local Stasis_Proto = require("stasis_proto")
+local Proto_Manager = require("proto_manager")
+
 local modem = peripheral.find("modem") or nil
-local ID = os.getComputerID()
-local configFileName = "stasis/data/user.cfg"
+
+local config = Config:new("/stasis/data/user.cfg")
+local log = Log:new("/stasis/data/latest.log", Log.Level.DEBUG)
+local stasisMgr = nil
+
 local shouldRun = true
+--Contains info of nodes found
 local nodes = {}
-local OUT_PROTO = "stasis"
-local IN_PROTO = "stasis_res"
 local DEF_TIMEOUT = 2
 --ID, Location, Authed, Online
 --id, loc, en, on
 
+local terminalCmd = {}
+local redNetCmd = {}
+
+--Returns node based on id
 function getNodeByID(id)
     for n in nodes do
         if(n.id == id) then
@@ -19,6 +29,7 @@ function getNodeByID(id)
     end
 end
 
+--Returns node based on location
 function getNodeByLoc(loc)
     for n in nodes do
         if(n.loc == loc) then
@@ -27,63 +38,63 @@ function getNodeByLoc(loc)
     end
 end
 
+--Pings node and rerturns if it responded
 function pingNode(id, timeout)
-    timeout = timeout or config.getKey("timeout")
-    rednet.send(id, {cmd = "ping"}, OUT_PROTO)
-    local nId, msg = rednet.receive(IN_PROTO, timeout)
-    if(msg and msg == "pong") then 
-        return true 
+    stasisMgr:send(id, 200, Stasis_Proto.cmd.PING, "ping")
+    local res = stasisMgr:recv(id)
+    if(res.status == 200 and res.decoded == "pong") then
+        return true
     end
     return false
 end
 
+--Get info from node and return it, returns nil if failed
 function queryNode(id)
-    if(not config.hasKey("user_id")) then
+    --Need user id to see if we're authed
+    if(not config:has("user_id")) then
         print("User ID not set, can't query")
         return nil
     end
-    rednet.send(id, {userID = config.getKey("user_id"), cmd = "info"}, OUT_PROTO)
-    local rID, res = rednet.receive(IN_PROTO, config.getKey("timeout"))
+    --print("USER ID: " .. config:get("user_id"))
+    stasisMgr:send(id, 200, Stasis_Proto.cmd.INFO, config:get("user_id"))
+    local res = stasisMgr:recv(id)
     if (not res) then
         print("Timeout while waiting for response")
         return nil
     end
-    if(rID ~= id) then
-        util.log(util.logLevel.ERROR, "recv from wrong node")
-        print("recv from wrong node")
+    if(res.status ~= 200) then
+        log:log(log.Level.ERROR, "Error response from node" .. id .. ": " .. res.data)
+        print("Error response from node: " .. res.data)
         return nil
     end
-    if(res) then
-        if(res.status ~= 200) then
-            util.log(util.logLevel.ERROR, "Error response from node" .. id .. ": " .. res.data)
-            print("Error response from node: " .. res.data)
-            return
-        end
-        local parts = util.split(res.data, ' ')
-        if(#parts ~= 2) then
-            util.log(util.logLevel.ERROR, "invalid response from node" .. id .. ": " .. res.data)
-            print("invalid response from node")
-            return nil
-        end
-        return {id = id, loc = parts[1], authed = parts[2]}
+
+    if(not res.decoded.loc or not res.decoded.authed) then
+        log:log(log.Level.ERROR, "invalid response from node" .. id .. ": " .. res.decoded)
+        print("invalid response from node")
+        return nil
     end
+    return {id = id, loc = res.decoded.loc, authed = res.decoded.authed}
 end
 
+--Finds all nodes currently online and queries them
 function findNodes()
     print("Searching...")
-    local sNodes = { rednet.lookup("stasis") }
+    local sNodes = { rednet.lookup(Stasis_Proto.SERVER_PROTO) }
     print("Found ", #sNodes, " nodes")
-    print("Querying nodes...")
+    write("Querying nodes...")
     for _, nID in pairs(sNodes) do
         nodes[nID] = queryNode(nID)
         if(nodes[nID]) then
-            printNode(nID)
+            write('.')
         else
             print("Failed to query node ", nID)
         end
     end
+    print("")
+    printNodes(nodes)
 end
 
+--Print info about node
 function printNode(id)
     local n = nodes[id]
     if(not n) then
@@ -92,12 +103,15 @@ function printNode(id)
     print(n.id .. ": '" .. n.loc .. "' " .. n.authed)
 end
 
+--Print all nodes with header
 function printNodes(nodes)
+    print("ID  Loc  Authed")
     for id, n in pairs(nodes) do
         printNode(id)
     end
 end
 
+--Resolve id/location to node
 function resolveNode(input)
     local id = tonumber(input)
     if(not id) then
@@ -114,56 +128,77 @@ function resolveNode(input)
     return nodes[id]
 end
 
+--Terminal Cmd Callbacks
+terminalCmd["exit"] = function(cmd)
+    shouldRun = false
+end
+
+terminalCmd["nodes"] = function(cmd)
+    findNodes()
+end
+
+terminalCmd["list"] = function(cmd)
+    printNodes(nodes)
+end
+
+terminalCmd["tp"] = function(cmd)
+    if(#cmd < 2) then
+        print("Usage:")
+        print("tp [node_id/location]")
+        return
+    end
+    local node = resolveNode(cmd[2])
+    if(not node) then
+        print("Node not found")
+        return
+    end
+    if(node.authed ~= "1") then
+        print("Node not authed")
+        return
+    end
+    stasisMgr:send(node.id, 200, Stasis_Proto.cmd.TP, config:get("user_id"))
+    local res = stasisMgr:recv(node.id)
+    if(not res or res.status ~= 200) then
+        print("Failed to teleport")
+    end
+end
+
+terminalCmd["ping"] = function(cmd)
+    if(#cmd < 2) then
+        print("Usage:")
+        print("ping [node_id/location]")
+        return
+    end
+    local node = resolveNode(cmd[2])
+    if(not node) then
+        print("Node not found")
+        return
+    end
+    if(pingNode(node.id)) then
+        print("Node [" .. node.id .. "] " .. node.loc .. " is online")
+    else
+        print("Node [" .. node.id .. "] " .. node.loc .. " is offline")
+    end
+end
+
+terminalCmd["help"] = function(cmd)
+    print("Commands:")
+    print(" nodes \n  Search for nodes")
+    print(" list \n  List found nodes")
+    print(" tp [node_id/location] \n  Teleport to node")
+    print(" ping [node_id/location] \n  Ping node")
+    print(" exit \n  Exit the program")
+    print(" help \n  Show this message")
+end
+
+--Handle terminal input
 function handleInput(input)
     if(#input == 0) then
         return
     end
-    if(input[1] == "exit") then
-        shouldRun = false
-    elseif(input[1] == "nodes") then
-        findNodes()
-        --printNodes(nodes)
-    elseif(input[1] == "tp") then
-        if(#input < 2) then
-            print("Usage: tp [node_id/location]")
-            return
-        end
-        local node = resolveNode(input[2])
-        if(not node) then
-            print("Node not found")
-            return
-        end
-        if(node.authed == "0") then
-            print("Node not authed")
-            return
-        end
-        rednet.send(node.id, {userID = config.getKey("user_id"), cmd = "tp"}, OUT_PROTO)
-        rednet.receive(IN_PROTO, config.getKey("timeout"))
-    elseif(input[1] == "list") then
-        printNodes(nodes)
-    elseif(input[1] == "ping") then
-        if(#input < 2) then
-            print("Usage: ping [node_id/location]")
-            return
-        end
-        local node = resolveNode(input[2])
-        if(not node) then
-            print("Node not found")
-            return
-        end
-        if(pingNode(node.id)) then
-            print("Node [" .. node.id .. "] " .. node.loc .. " is online")
-        else
-            print("Node [" .. node.id .. "] " .. node.loc .. " is offline")
-        end
-    elseif(input[1] == "help") then
-        print("Commands:")
-        print("nodes - Search for stasis nodes")
-        print("list - List found nodes")
-        print("tp [node_id/location] - Teleport to node")
-        print("ping [node_id/location] - Ping node to check if it's online")
-        print("exit - Exit the program")
-        print("help - Show this message")
+    local cmd = input[1]
+    if(terminalCmd[cmd]) then
+        terminalCmd[cmd](input)
     else
         print("Unknown command")
     end
@@ -171,37 +206,38 @@ end
 
 
 --Main
-util.clearLog()
+log:clear()
+config:load()
 
---Main
 --Init Peripherals
 if modem == nil then
-    util.log(util.logLevel.FATAL, "Modem not found")
+    log:log(log.Level.FATAL, "Modem not found")
     print("Install a modem with 'equip' while a modem is in your inventory")
     return
 else
     rednet.open(peripheral.getName(modem))
 end
 
---Load Config
-config.loadConfig(configFileName)
-
-if(not config.hasKey("user_id")) then
+if(not config:has("user_id")) then
     write("Enter your user ID: ")
     local userID = read()
-    config.setKey("user_id", userID)
+    config:set("user_id", userID)
 end
 
-if(not config.hasKey("timeout")) then
-    config.setKey("timeout", DEF_TIMEOUT)
+if(not config:has("timeout")) then
+    config:set("timeout", DEF_TIMEOUT)
 end
 
-config.saveConfig(configFileName)
+config:save()
 
-print("Logged in as ", config.getKey("user_id"))
+Stasis_Proto.logger = log
+
+stasisMgr = Proto_Manager:new(Stasis_Proto, true, config:get("timeout"))
+
+print("Logged in as ", config:get("user_id"))
 findNodes()
 
 while shouldRun do
     write("sc> ")
-    handleInput(util.split(read(), ' '))
+    handleInput(Util.split(read(), ' '))
 end

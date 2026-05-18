@@ -1,8 +1,26 @@
 local util = require("util")
+local Log = require("log")
 
-local config = {}
+Config = {fileName = "default.cfg", data = {}, logger = nil}
 
-function loadConfig(fileName)
+local function log(cfg, level, ...)
+    if cfg.logger then
+        cfg.logger:log(level, ...)
+    end
+end
+
+function Config:new(fileName, logger)
+    local o = {}
+    setmetatable(o, self)
+    self.__index = self
+    o.fileName = fileName
+    o.logger = logger
+    o.data = {}
+    return o
+end
+
+function Config:load(fileName)
+    fileName = fileName or self.fileName
     if fs.exists(fileName) then
         local file = fs.open(fileName, "r")
         local content = file.readAll()
@@ -11,46 +29,43 @@ function loadConfig(fileName)
         local loadedData = textutils.unserialize(content)
         if loadedData then
             -- Clear existing data in the original table
-            clear()
+            self:clear()
             -- Populate original table with new data
-            for k, v in pairs(loadedData) do config[k] = v end
+            for k, v in pairs(loadedData) do self.data[k] = v end
         end
 
-        util.log(util.logLevel.INFO, "Loaded config from ", fileName)
+        log(self, Log.Level.INFO, "Loaded config from ", fileName)
         return true
     else
-        util.log(util.logLevel.WARN, "Config file '", fileName, "' not found")
+        log(self, Log.Level.WARN, "Config file '", fileName, "' not found")
         return false
     end
 end
 
 
-function saveConfig(fileName)
+function Config:save(fileName)
+    fileName = fileName or self.fileName
     local file = fs.open(fileName, "w")
-    file.write(textutils.serialize(config))
+    file.write(textutils.serialize(self.data))
     file.close()
-    util.log(util.logLevel.INFO, "Saved config to ", fileName)
+    log(self, Log.Level.INFO, "Saved config to ", fileName)
 end
 
-function keyExists(key)
-    return not (config[key] == nil)
+function Config:has(key)
+    return self.data[key] ~= nil
 end
 
-function hasKey(key)
-    return keyExists(key)
+function Config:get(key)
+    return self.data[key]
 end
 
-function getKey(key)
-    return config[key]
+function Config:set(key, value)
+    self.data[key] = value
+    log(self, Log.Level.DEBUG, "Updated config ", key, ": ", value or "nil")
 end
 
-function setKey(key, value)
-    config[key] = value
-    util.log(util.logLevel.DEBUG, "Updated config ", key, ": ", value or "nil")
+function Config:clear()
+    for k in pairs(self.data) do self.data[k] = nil end
 end
 
-function clear()
-    for k in pairs(config) do config[k] = nil end
-end
-
-return {loadConfig = loadConfig, saveConfig = saveConfig, keyExists = keyExists, hasKey = hasKey, getKey = getKey, setKey = setKey, data = config}
+return Config

@@ -9,11 +9,11 @@ Log.Level = {
 }
 
 Log.LevelStr = {
-    [1] = "DEBUG",
-    [2] = "INFO",
-    [3] = "WARN",
-    [4] = "ERROR",
-    [5] = "FATAL"
+    [Log.Level.DEBUG] = "DEBUG",
+    [Log.Level.INFO] = "INFO",
+    [Log.Level.WARN] = "WARN",
+    [Log.Level.ERROR] = "ERROR",
+    [Log.Level.FATAL] = "FATAL"
 }
 
 function Log:new(fileName, logLevel)
@@ -21,7 +21,8 @@ function Log:new(fileName, logLevel)
     setmetatable(o, self)
     self.__index = self
     o.fileName = fileName
-    o.curLogLevel = logLevel or Log.Level.DEBUG
+    o.curLogLevel = logLevel or Log.Level.WARN
+    o.enabled = true
     return o
 end
 

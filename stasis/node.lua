@@ -56,27 +56,6 @@ local function initRedstoneRelay(relayIdx, state)
     log:log(log.Level.INFO, "Initialized relay index", relayIdx, "to state", state)
 end
 
---Get info from node and return it, returns nil if failed
-local function queryNode(stasisMgr, id, userID)
-    --Need user id to see if we're authed
-    if(not userID) then
-        return "User ID not set, can't query"
-    end
-    stasisMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
-    local res = stasisMgr:recv(id)
-    if (not res) then
-        return "Timeout while waiting for response"
-    end
-    if(res.status ~= 200) then
-        return "Error response from node: " .. res.data
-    end
-
-    if(not res.decoded.loc or not res.decoded.authed) then
-        return "Invalid response from node"
-    end
-    return {id = id, loc = res.decoded.loc, authed = res.decoded.authed}
-end
-
 local function nodeNameExists(name)
     local node = rednet.lookup(Stasis_Proto.SERVER_PROTO, name)
     if(node) then

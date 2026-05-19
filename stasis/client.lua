@@ -33,13 +33,13 @@ local function pingNode(id, timeout)
 end
 
 --Get info from node and return it, returns nil if failed
-local function queryNode(stasisMgr, id, userID)
+local function queryNode(id, userID)
     --Need user id to see if we're authed
     if(not userID) then
         return "User ID not set, can't query"
     end
-    stasisMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
-    local res = stasisMgr:recv(id)
+    stasisNetMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
+    local res = stasisNetMgr:recv(id)
     if (not res) then
         return "Timeout while waiting for response"
     end
@@ -63,7 +63,7 @@ local function findNodes()
     end
     write("Querying nodes...")
     for _, nID in pairs(sNodes) do
-        local node = queryNode(stasisNetMgr, nID, config:get("user_id"))
+        local node = queryNode(nID, config:get("user_id"))
         if(type(node) == "table") then
             nodes[nID] = node
             write('.')

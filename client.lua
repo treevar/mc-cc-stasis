@@ -8,7 +8,8 @@ local modem = peripheral.find("modem") or nil
 
 local config = Config:new("/stasis/data/user.cfg")
 local log = Log:new("/stasis/data/latest.log", Log.Level.DEBUG)
-local stasisMgr = nil
+Stasis_Proto.logger = log
+local stasisMgr = Proto_Manager:new(Stasis_Proto, true, 1)
 
 local shouldRun = true
 --Contains info of nodes found
@@ -20,24 +21,6 @@ local DEF_TIMEOUT = 2
 local terminalCmd = {}
 local redNetCmd = {}
 
---Returns node based on id
-function getNodeByID(id)
-    for n in nodes do
-        if(n.id == id) then
-            return n
-        end
-    end
-end
-
---Returns node based on location
-function getNodeByLoc(loc)
-    for n in nodes do
-        if(n.loc == loc) then
-            return n
-        end
-    end
-end
-
 --Pings node and rerturns if it responded
 function pingNode(id, timeout)
     stasisMgr:send(id, 200, Stasis_Proto.cmd.PING, "ping")
@@ -48,46 +31,24 @@ function pingNode(id, timeout)
     return false
 end
 
---Get info from node and return it, returns nil if failed
-function queryNode(id)
-    --Need user id to see if we're authed
-    if(not config:has("user_id")) then
-        print("User ID not set, can't query")
-        return nil
-    end
-    --print("USER ID: " .. config:get("user_id"))
-    stasisMgr:send(id, 200, Stasis_Proto.cmd.INFO, config:get("user_id"))
-    local res = stasisMgr:recv(id)
-    if (not res) then
-        print("Timeout while waiting for response")
-        return nil
-    end
-    if(res.status ~= 200) then
-        log:log(log.Level.ERROR, "Error response from node" .. id .. ": " .. res.data)
-        print("Error response from node: " .. res.data)
-        return nil
-    end
-
-    if(not res.decoded.loc or not res.decoded.authed) then
-        log:log(log.Level.ERROR, "invalid response from node" .. id .. ": " .. res.decoded)
-        print("invalid response from node")
-        return nil
-    end
-    return {id = id, loc = res.decoded.loc, authed = res.decoded.authed}
-end
-
 --Finds all nodes currently online and queries them
 function findNodes()
     print("Searching...")
     local sNodes = { rednet.lookup(Stasis_Proto.SERVER_PROTO) }
     print("Found ", #sNodes, " nodes")
+    if(#sNodes == 0) then
+        return
+    end
     write("Querying nodes...")
     for _, nID in pairs(sNodes) do
-        nodes[nID] = queryNode(nID)
-        if(nodes[nID]) then
+        local node = Util.queryNode(stasisMgr, nID, config:get("user_id"))
+        if(type(node) == "table") then
+            nodes[nID] = node
             write('.')
+        elseif(type(node) == "string") then
+            write('x')
+            log:log(Log.Level.WARN, "Failed to query node " .. nID .. ": " .. node)
         else
-            print("Failed to query node ", nID)
         end
     end
     print("")
@@ -163,6 +124,32 @@ terminalCmd["tp"] = function(cmd)
     end
 end
 
+--Admin CMD
+terminalCmd["tpas"] = function(cmd)
+    if(not config:has("admin")) then
+        return
+    end
+    if(#cmd < 3) then
+        print("Usage:")
+        print("tpas [node_id/location] [user_id]")
+        return
+    end
+    local node = resolveNode(cmd[2])
+    if(not node) then
+        print("Node not found")
+        return
+    end
+    stasisMgr:send(node.id, 200, Stasis_Proto.cmd.TP, cmd[3])
+    local res = stasisMgr:recv(node.id)
+    if(not res) then
+        print("Failed to teleport")
+    elseif(res.status ~= 200) then
+        print(res.data)
+    else
+        print("Teleported " .. cmd[3] .. " to " .. node.loc)
+    end
+end
+
 terminalCmd["ping"] = function(cmd)
     if(#cmd < 2) then
         print("Usage:")
@@ -220,7 +207,16 @@ end
 
 if(not config:has("user_id")) then
     write("Enter your user ID: ")
-    local userID = read()
+    local nameGood = false
+    local userID = nil
+    while not nameGood do
+        userID = read()
+        if(not Util.isValidName(userID)) then
+            print("User ID can't contain spaces, try again")
+        else
+            nameGood = true
+        end
+    end
     config:set("user_id", userID)
 end
 
@@ -230,11 +226,9 @@ end
 
 config:save()
 
-Stasis_Proto.logger = log
+stasisMgr.timeout = config:get("timeout")
 
-stasisMgr = Proto_Manager:new(Stasis_Proto, true, config:get("timeout"))
-
-print("Logged in as ", config:get("user_id"))
+print("Logged in as", config:get("user_id"))
 findNodes()
 
 while shouldRun do

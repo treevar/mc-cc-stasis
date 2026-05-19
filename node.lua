@@ -15,7 +15,7 @@ end)
 
 local log = Log:new("/stasis/data/latest.log", Log.Level.DEBUG)
 local config = Config:new("/stasis/data/user.cfg", log)
-local stasisNetMgr = nil
+local stasisNetMgr = Proto_Manager:new(Stasis_Proto, false, 1)
 
 local redNetCmd = {}
 local terminalCmd = {}
@@ -214,10 +214,10 @@ terminalCmd["config"] = function(cmd)
     end
     local key = cmd[2]
     if(#cmd == 3) then
-        print("Value: ", config:get(key))
-    else
         local value = cmd[3]
         config:set(key, value)
+    else
+        print("Value: ", config:get(key))
     end
 end
 
@@ -258,14 +258,36 @@ function initRedstoneRelay(relayIdx, state)
     r.setOutput("back", state)
 end
 
+function nodeNameExists(name)
+    local nodes = rednet.lookup(Stasis_Proto.SERVER_PROTO)
+    for id, n in pairs(nodes) do
+        local node = Util.queryNode(stasisNetMgr, id, "NODE_NAME_QUERY")
+        if(type(node) == "table" and node.loc == name) then
+            return true
+        end
+    end
+    return false
+end
+
 --Load Config
 log:clear()
 config:load()
 
 if(not config:has("loc")) then
     write("Enter the name of this location: ")
-    local loc = read()
-    config:set("loc", loc)
+    local nameUnique = false
+    local name = nil
+    while not nameUnique do
+        name = read()
+        if(not Util.isValidName(name)) then
+            print("Name can't contain spaces, try again")
+        elseif(nodeNameExists(name)) then
+            print("Name already taken by another node, try again")
+        elseif(#name ~= 0) then
+            nameUnique = true
+        end
+    end
+    config:set("loc", name)
 end
 
 if(not config:has("map")) then
@@ -282,7 +304,7 @@ end
 
 config:save()
 Stasis_Proto.logger = log
-stasisNetMgr = Proto_Manager:new(Stasis_Proto, false, config:get("timeout"))
+stasisNetMgr.timeout = config:get("timeout")
 
 --Main
 
@@ -291,6 +313,7 @@ print("Logged in to node '" .. config:get("loc") .. "'")
 --Init Peripherals
 if modem == nil then
     log:log(log.Level.FATAL, "Modem not found")
+    print("Wireless Modem not found, can't start stasis node")
     return
 else
     rednet.open(peripheral.getName(modem))

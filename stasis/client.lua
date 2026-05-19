@@ -1,8 +1,9 @@
-local Config = require("config")
-local Log = require("log")
-local Util = require("util")
+package.path = package.path .. ";/?.lua"
+local Config = require("commno.config")
+local Log = require("commno.log")
+local Util = require("common.util")
 local Stasis_Proto = require("stasis_proto")
-local Proto_Manager = require("proto_manager")
+local Proto_Manager = require("common.proto_manager")
 
 local modem = peripheral.find("modem", function(name, per) return per.isWireless() end) or nil
 
@@ -11,26 +12,45 @@ local dataDir = appDir .. "/data"
 
 local log = Log:new(dataDir .. "/latest.log", Log.Level.DEBUG)
 local config = Config:new(dataDir .. "/user.cfg", log)
-local stasisMgr = Proto_Manager:new(Stasis_Proto, true, 1, log)
+local stasisNetMgr = Proto_Manager:new(Stasis_Proto, true, 1, log)
 
 local shouldRun = true
 --Contains info of nodes found
 local nodes = {}
 local DEF_TIMEOUT = 2
---ID, Location, Authed, Online
---id, loc, en, on
 
 local terminalCmd = {}
 local redNetCmd = {}
 
 --Pings node and rerturns if it responded
 function pingNode(id, timeout)
-    stasisMgr:send(id, 200, Stasis_Proto.CMD.PING, "ping")
-    local res = stasisMgr:recv(id)
+    stasisNetMgr:send(id, 200, Stasis_Proto.CMD.PING, "ping")
+    local res = stasisNetMgr:recv(id)
     if(res.status == 200 and res.decoded == "pong") then
         return true
     end
     return false
+end
+
+--Get info from node and return it, returns nil if failed
+function queryNode(stasisMgr, id, userID)
+    --Need user id to see if we're authed
+    if(not userID) then
+        return "User ID not set, can't query"
+    end
+    stasisMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
+    local res = stasisMgr:recv(id)
+    if (not res) then
+        return "Timeout while waiting for response"
+    end
+    if(res.status ~= 200) then
+        return "Error response from node: " .. res.data
+    end
+
+    if(not res.decoded.loc or not res.decoded.authed) then
+        return "Invalid response from node"
+    end
+    return {id = id, loc = res.decoded.loc, authed = res.decoded.authed}
 end
 
 --Finds all nodes currently online and queries them
@@ -43,7 +63,7 @@ function findNodes()
     end
     write("Querying nodes...")
     for _, nID in pairs(sNodes) do
-        local node = Util.queryNode(stasisMgr, nID, config:get("user_id"))
+        local node = queryNode(stasisNetMgr, nID, config:get("user_id"))
         if(type(node) == "table") then
             nodes[nID] = node
             write('.')
@@ -119,8 +139,8 @@ terminalCmd["tp"] = function(cmd)
         print("Node not authed")
         return
     end
-    stasisMgr:send(node.id, 200, Stasis_Proto.CMD.TP, config:get("user_id"))
-    local res = stasisMgr:recv(node.id)
+    stasisNetMgr:send(node.id, 200, Stasis_Proto.CMD.TP, config:get("user_id"))
+    local res = stasisNetMgr:recv(node.id)
     if(not res or res.status ~= 200) then
         print("Failed to teleport")
     end
@@ -141,8 +161,8 @@ terminalCmd["tpas"] = function(cmd)
         print("Node not found")
         return
     end
-    stasisMgr:send(node.id, 200, Stasis_Proto.CMD.TP, cmd[3])
-    local res = stasisMgr:recv(node.id)
+    stasisNetMgr:send(node.id, 200, Stasis_Proto.CMD.TP, cmd[3])
+    local res = stasisNetMgr:recv(node.id)
     if(not res) then
         print("Failed to teleport")
     elseif(res.status ~= 200) then
@@ -235,7 +255,7 @@ end
 
 config:save()
 
-stasisMgr.timeout = config:get("timeout")
+stasisNetMgr.timeout = config:get("timeout")
 
 print("Logged in as", config:get("user_id"))
 findNodes()

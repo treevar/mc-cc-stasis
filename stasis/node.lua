@@ -1,8 +1,9 @@
-local util = require("util")
-local Config = require("config")
-local Log = require("log")
+package.path = package.path .. ";/?.lua"
+local util = require("common.util")
+local Config = require("common.config")
+local Log = require("common.log")
 local Stasis_Proto = require("stasis_proto")
-local Proto_Manager = require("proto_manager")
+local Proto_Manager = require("common.proto_manager")
 
 local modem = peripheral.find("modem", function(name, peripheral) return peripheral.isWireless() end)
 local relay = {}
@@ -26,7 +27,7 @@ local netCodeActive = true
 local shouldRun = true
 local defState = false
 
-function sideToUsr(relayIdx, side)
+local function sideToUsr(relayIdx, side)
     if(util.isSide(side)) then
         for key, value in pairs(config:get("map")) do
             if(value.relayIdx ~= relayIdx) then
@@ -40,14 +41,66 @@ function sideToUsr(relayIdx, side)
     return nil
 end
 
-function printMappings(map)
+local function initRedstoneRelay(relayIdx, state)
+    r = relay[relayIdx]
+    if (relay == nil) then
+        log:log(log.Level.WARN, "Attempted to initialize nonexistant relay index", tostring(relayIdx))
+        return
+    end
+    r.setOutput("top", state)
+    r.setOutput("bottom", state)
+    r.setOutput("left", state)
+    r.setOutput("right", state)
+    r.setOutput("front", state)
+    r.setOutput("back", state)
+    log:log(log.Level.INFO, "Initialized relay index", relayIdx, "to state", state)
+end
+
+--Get info from node and return it, returns nil if failed
+local function queryNode(stasisMgr, id, userID)
+    --Need user id to see if we're authed
+    if(not userID) then
+        return "User ID not set, can't query"
+    end
+    stasisMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
+    local res = stasisMgr:recv(id)
+    if (not res) then
+        return "Timeout while waiting for response"
+    end
+    if(res.status ~= 200) then
+        return "Error response from node: " .. res.data
+    end
+
+    if(not res.decoded.loc or not res.decoded.authed) then
+        return "Invalid response from node"
+    end
+    return {id = id, loc = res.decoded.loc, authed = res.decoded.authed}
+end
+
+local function nodeNameExists(name)
+    local nodes = rednet.lookup(Stasis_Proto.SERVER_PROTO)
+    for id, n in pairs(nodes) do
+        local node = queryNode(stasisNetMgr, id, "NODE_NAME_QUERY")
+        if(type(node) == "table" and node.loc == name) then
+            log:log(Log.Level.INFO, "Found existing node with name '" .. name .. "' at ID " .. id)
+            return true
+        else
+            log:log(Log.Level.WARN, "Failed to query node " .. id .. " while checking for name existence: " .. tostring(node))
+        end
+    end
+    log:log(Log.Level.DEBUG, "No existing node with name '" .. name .. "' found")
+    return false
+end
+
+local function printMappings(map)
+    print("User   Relay  Side")
     for k, v in pairs(map) do
-        print(k, "-> r:", v.relayIdx, " s:", v.side)
+        print(k, v.relayIdx, v.side)
     end
 end
 
 --Pulse stasis
-function triggerStasis(relayIdx, side)
+local function triggerStasis(relayIdx, side)
     local relay = relay[relayIdx]
     if(relay == nil) then
         log:log(Log.Level.WARN, "Attempted to trigger nonexistant relay index " .. relayIdx)
@@ -60,7 +113,7 @@ function triggerStasis(relayIdx, side)
     relay.setOutput(side, defState)
 end
 
-function procRednet()
+local function procRednet()
     while true do
         if(netCodeActive) then
             local req = stasisNetMgr:recv()
@@ -83,7 +136,7 @@ function procRednet()
     end
 end
 
-function procTerminal()
+local function procTerminal()
     while shouldRun do
         write(config:get("loc") .. "> ")
         local cmd = util.split(read(), ' ') --Yields
@@ -245,31 +298,7 @@ terminalCmd["nonet"] = function(cmd)
     netCodeActive = false
 end
 
-
-function initRedstoneRelay(relayIdx, state)
-    r = relay[relayIdx]
-    if (relay == nil) then
-        log:log(log.Level.WARN, "Attempted to initialize nonexistant relay index", tostring(relayIdx))
-        return
-    end
-    r.setOutput("top", state)
-    r.setOutput("bottom", state)
-    r.setOutput("left", state)
-    r.setOutput("right", state)
-    r.setOutput("front", state)
-    r.setOutput("back", state)
-end
-
-function nodeNameExists(name)
-    local nodes = rednet.lookup(Stasis_Proto.SERVER_PROTO)
-    for id, n in pairs(nodes) do
-        local node = Util.queryNode(stasisNetMgr, id, "NODE_NAME_QUERY")
-        if(type(node) == "table" and node.loc == name) then
-            return true
-        end
-    end
-    return false
-end
+--Main
 
 if(not fs.exists(dataDir)) then
     fs.makeDir(dataDir)
@@ -320,7 +349,7 @@ print("Logged in to node '" .. config:get("loc") .. "'")
 --Init Peripherals
 if modem == nil then
     log:log(log.Level.FATAL, "Modem not found")
-    print("Wireless Modem not found, can't start stasis node")
+    print("Wireless Modem not found, can't start the stasis service")
     return
 else
     rednet.open(peripheral.getName(modem))
@@ -329,6 +358,7 @@ end
 
 if (wrappedRelay == nil) then
     log:log(log.Level.FATAL, "Redstone relay not found")
+    print("Atleast one redstone relay is needed to start the stasis service")
     return
 end
 

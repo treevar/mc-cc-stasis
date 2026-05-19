@@ -33,7 +33,7 @@ function Proto_Manager:decode(pckt)
     end
 
     local decoder = self.PROTO.decoders[pckt.cmd]
-    if(not decoder) then
+    if(not decoder or not decoder.fn) then
         log(self.logger, Log.Level.WARN, "No decoder for cmd " .. pckt.cmd)
         return nil
     end
@@ -46,7 +46,7 @@ function Proto_Manager:decode(pckt)
         end
     end
     
-    local decoded = decoder(self._isClient, pckt)
+    local decoded = decoder.fn(self._isClient, pckt)
     if(decoded == nil) then
         log(self.logger, Log.Level.WARN, "Invalid data for cmd " .. pckt.cmd .. ": " .. textutils.serialize(pckt.data))
     end
@@ -59,7 +59,7 @@ function Proto_Manager:encode(cmd, status, dat)
         return nil
     end
     local encoder = self.PROTO.encoders[cmd]
-    if(not encoder) then
+    if(not encoder or not encoder.fn) then
         log(self.logger, Log.Level.WARN, "No encoder for cmd " .. cmd)
         return nil
     end
@@ -78,7 +78,7 @@ function Proto_Manager:encode(cmd, status, dat)
         end
     end
     
-    return encoder(self._isClient, dat)
+    return encoder.fn(self._isClient, dat)
 end
 
 --Sends a packet to a machine, cmd is the command type, ... is the data to encode for that command (varies by cmd)
@@ -105,21 +105,21 @@ function Proto_Manager:recv(expectID)
     if(self._isClient) then
         proto = self.PROTO.CLIENT_PROTO
     end
-    local id, msg = rednet.receive(proto, self.timeout)
-    log(self.logger, Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(msg or "nil"))
+    local id, pckt = rednet.receive(proto, self.timeout)
+    log(self.logger, Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(pckt or "nil"))
     
-    if(not id or not msg or (expectID and id ~= expectID)) then
-        return nil
-    end
-    --print("Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(msg or "nil"))
-    if(msg.status == nil or msg.cmd == nil) then
+    if(not id or not pckt or (expectID and id ~= expectID)) then
         return nil
     end
 
-    --Attach ID to message so decoders can use it if needed
-    msg.id = id
+    if(pckt.status == nil or pckt.cmd == nil) then
+        return nil
+    end
 
-    local res = {id = id, status = msg.status, cmd = msg.cmd, data = msg.data, decoded = self:decode(msg)}
+    --Attach ID to pckt so decoders can use it if needed
+    pckt.id = id
+
+    local res = {id = id, status = pckt.status, cmd = pckt.cmd, data = pckt.data, decoded = self:decode(pckt)}
     return res
 end
 

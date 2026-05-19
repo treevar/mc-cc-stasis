@@ -4,7 +4,7 @@ local Util = require("util")
 local Stasis_Proto = require("stasis_proto")
 local Proto_Manager = require("proto_manager")
 
-local modem = peripheral.find("modem") or nil
+local modem = peripheral.find("modem", function(name, per) return per.isWireless() end) or nil
 
 local appDir = "/stasis"
 local dataDir = appDir .. "/data"

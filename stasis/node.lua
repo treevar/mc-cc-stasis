@@ -78,17 +78,11 @@ local function queryNode(stasisMgr, id, userID)
 end
 
 local function nodeNameExists(name)
-    local nodes = rednet.lookup(Stasis_Proto.SERVER_PROTO)
-    for id, n in pairs(nodes) do
-        local node = queryNode(stasisNetMgr, id, "NODE_NAME_QUERY")
-        if(type(node) == "table" and node.loc == name) then
-            log:log(Log.Level.INFO, "Found existing node with name '" .. name .. "' at ID " .. id)
-            return true
-        else
-            log:log(Log.Level.WARN, "Failed to query node " .. id .. " while checking for name existence: " .. tostring(node))
-        end
+    local node = rednet.lookup(Stasis_Proto.SERVER_PROTO, name)
+    if(node) then
+        log:log(Log.Level.DEBUG, "Found existing node with name '" .. name .. "' at ID " .. node)
+        return true
     end
-    log:log(Log.Level.DEBUG, "No existing node with name '" .. name .. "' found")
     return false
 end
 

@@ -23,7 +23,7 @@ local terminalCmd = {}
 local redNetCmd = {}
 
 --Pings node and rerturns if it responded
-function pingNode(id, timeout)
+local function pingNode(id, timeout)
     stasisNetMgr:send(id, 200, Stasis_Proto.CMD.PING, "ping")
     local res = stasisNetMgr:recv(id)
     if(res.status == 200 and res.decoded == "pong") then
@@ -33,7 +33,7 @@ function pingNode(id, timeout)
 end
 
 --Get info from node and return it, returns nil if failed
-function queryNode(stasisMgr, id, userID)
+local function queryNode(stasisMgr, id, userID)
     --Need user id to see if we're authed
     if(not userID) then
         return "User ID not set, can't query"
@@ -54,7 +54,7 @@ function queryNode(stasisMgr, id, userID)
 end
 
 --Finds all nodes currently online and queries them
-function findNodes()
+local function findNodes()
     print("Searching...")
     local sNodes = { rednet.lookup(Stasis_Proto.SERVER_PROTO) }
     print("Found ", #sNodes, " nodes")
@@ -78,7 +78,7 @@ function findNodes()
 end
 
 --Print info about node
-function printNode(id)
+local function printNode(id)
     local n = nodes[id]
     if(not n) then
         return
@@ -87,7 +87,7 @@ function printNode(id)
 end
 
 --Print all nodes with header
-function printNodes(nodes)
+local function printNodes(nodes)
     print("ID  Loc  Authed")
     for id, n in pairs(nodes) do
         printNode(id)
@@ -95,7 +95,7 @@ function printNodes(nodes)
 end
 
 --Resolve id/location to node
-function resolveNode(input)
+local function resolveNode(input)
     local id = tonumber(input)
     if(not id) then
         for nID, n in pairs(nodes) do
@@ -109,6 +109,19 @@ function resolveNode(input)
         return nil
     end
     return nodes[id]
+end
+
+--Handle terminal input
+local function handleInput(input)
+    if(#input == 0) then
+        return
+    end
+    local cmd = input[1]
+    if(terminalCmd[cmd]) then
+        terminalCmd[cmd](input)
+    else
+        print("Unknown command")
+    end
 end
 
 --Terminal Cmd Callbacks
@@ -198,19 +211,6 @@ terminalCmd["help"] = function(cmd)
     print(" ping [node_id/location] \n  Ping node")
     print(" exit \n  Exit the program")
     print(" help \n  Show this message")
-end
-
---Handle terminal input
-function handleInput(input)
-    if(#input == 0) then
-        return
-    end
-    local cmd = input[1]
-    if(terminalCmd[cmd]) then
-        terminalCmd[cmd](input)
-    else
-        print("Unknown command")
-    end
 end
 
 

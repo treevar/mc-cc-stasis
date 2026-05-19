@@ -3,12 +3,6 @@ local Log = require("log")
 
 Config = {fileName = "default.cfg", data = {}, logger = nil}
 
-local function log(cfg, level, ...)
-    if cfg.logger then
-        cfg.logger:log(level, ...)
-    end
-end
-
 function Config:new(fileName, logger)
     local o = {}
     setmetatable(o, self)
@@ -17,6 +11,12 @@ function Config:new(fileName, logger)
     o.logger = logger
     o.data = {}
     return o
+end
+
+function Config:_log(level, ...)
+    if self.logger then
+        self.logger:log(level, ...)
+    end
 end
 
 function Config:load(fileName)
@@ -34,10 +34,10 @@ function Config:load(fileName)
             for k, v in pairs(loadedData) do self.data[k] = v end
         end
 
-        log(self, Log.Level.INFO, "Loaded config from ", fileName)
+        self:_log(Log.Level.INFO, "Loaded config from ", fileName)
         return true
     else
-        log(self, Log.Level.WARN, "Config file '", fileName, "' not found")
+        self:_log(Log.Level.WARN, "Config file '", fileName, "' not found")
         return false
     end
 end
@@ -61,7 +61,7 @@ end
 
 function Config:set(key, value)
     self.data[key] = value
-    log(self, Log.Level.DEBUG, "Updated config ", key, ": ", value or "nil")
+    self:_log(Log.Level.DEBUG, "Updated config ", key, ": ", value or "nil")
 end
 
 function Config:clear()

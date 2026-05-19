@@ -1,12 +1,5 @@
 Proto_Manager = {PROTO = nil, _isClient = nil, timeout = 2, logger = nil}
 
---Helper to log if we have a logger
-local function log(logger, level, ...)
-    if logger then
-        logger:log(level, ...)
-    end
-end
-
 local function statusAllowed(status, allowed)
     for _, s in pairs(allowed) do
         if(s == status) then
@@ -27,14 +20,20 @@ function Proto_Manager:new(proto, isClient, timeout, logger)
     return o
 end
 
+function Proto_Manager:_log(level, ...)
+    if self.logger then
+        self.logger:log(level, ...)
+    end
+end
+
 function Proto_Manager:decode(pckt)
     if(not pckt or not pckt.cmd or not pckt.status or not pckt.id) then
-        log(self.logger, Log.Level.WARN, "Invalid packet to decode: " .. textutils.serialize(pckt))
+        self:_log(Log.Level.WARN, "Invalid packet to decode: " .. textutils.serialize(pckt))
     end
 
     local decoder = self.PROTO.decoders[pckt.cmd]
     if(not decoder or not decoder.fn) then
-        log(self.logger, Log.Level.WARN, "No decoder for cmd " .. pckt.cmd)
+        self:_log(Log.Level.WARN, "No decoder for cmd " .. pckt.cmd)
         return nil
     end
 
@@ -48,19 +47,19 @@ function Proto_Manager:decode(pckt)
     
     local decoded = decoder.fn(self._isClient, pckt)
     if(decoded == nil) then
-        log(self.logger, Log.Level.WARN, "Invalid data for cmd " .. pckt.cmd .. ": " .. textutils.serialize(pckt.data))
+        self:_log(Log.Level.WARN, "Invalid data for cmd " .. pckt.cmd .. ": " .. textutils.serialize(pckt.data))
     end
     return decoded
 end
 
 function Proto_Manager:encode(cmd, status, dat)
     if(not cmd) then
-        log(self.logger, Log.Level.WARN, "Tried to encode nil cmd")
+        self:_log(Log.Level.WARN, "Tried to encode nil cmd")
         return nil
     end
     local encoder = self.PROTO.encoders[cmd]
     if(not encoder or not encoder.fn) then
-        log(self.logger, Log.Level.WARN, "No encoder for cmd " .. cmd)
+        self:_log(Log.Level.WARN, "No encoder for cmd " .. cmd)
         return nil
     end
     if(not statusAllowed(status, encoder.allowedStatus)) then --Error status, just return data as is (if it exists) or status as string if not
@@ -72,7 +71,7 @@ function Proto_Manager:encode(cmd, status, dat)
             elseif(type(dat) == "string" or type(dat) == "number") then
                 return dat
             else
-                log(self.logger, Log.Level.WARN, "Tried to encode non-string/number/table data with status " .. status .. ": " .. textutils.serialize(dat))
+                self:_log(Log.Level.WARN, "Tried to encode non-string/number/table data with status " .. status .. ": " .. textutils.serialize(dat))
                 return tostring(status)
             end
         end
@@ -84,7 +83,7 @@ end
 --Sends a packet to a machine, cmd is the command type, ... is the data to encode for that command (varies by cmd)
 function Proto_Manager:send(id, status, cmd, ...)
     if(not id or not cmd or not status) then
-        log(self.logger, Log.Level.WARN, "Tried to send message with nil id/cmd/status: " .. textutils.serialize({id, cmd, status}))
+        self:_log(Log.Level.WARN, "Tried to send message with nil id/cmd/status: " .. textutils.serialize({id, cmd, status}))
         return false
     end
     local dat = { ... }
@@ -95,7 +94,7 @@ function Proto_Manager:send(id, status, cmd, ...)
         proto = self.PROTO.CLIENT_PROTO
     end
     rednet.send(id, sendMsg, proto)
-    log(self.logger, Log.Level.DEBUG, "Sent message with proto " .. proto .. " to " .. id .. ": " .. textutils.serialize(sendMsg))
+    self:_log(Log.Level.DEBUG, "Sent message with proto " .. proto .. " to " .. id .. ": " .. textutils.serialize(sendMsg))
     return true
 end
 
@@ -106,7 +105,7 @@ function Proto_Manager:recv(expectID)
         proto = self.PROTO.CLIENT_PROTO
     end
     local id, pckt = rednet.receive(proto, self.timeout)
-    log(self.logger, Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(pckt or "nil"))
+    self:_log(Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(pckt or "nil"))
     
     if(not id or not pckt or (expectID and id ~= expectID)) then
         return nil

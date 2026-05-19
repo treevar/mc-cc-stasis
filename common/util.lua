@@ -1,4 +1,4 @@
-function isSide(side)
+local function isSide(side)
     return  side == "top" or 
             side == "bottom" or 
             side == "left" or
@@ -7,7 +7,7 @@ function isSide(side)
             side == "back"
 end
 
-function split(str, c)
+local function split(str, c)
     local prevPos = 1
     local ret = {}
     while(prevPos and prevPos <= #str) do
@@ -23,7 +23,7 @@ function split(str, c)
     return ret
 end
 
-function isValidName(name)
+local function isValidName(name)
     if(not name or #name == 0) then
         return false
     end

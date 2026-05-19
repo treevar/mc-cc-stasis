@@ -12,10 +12,12 @@ local wrappedRelay = peripheral.find("redstone_relay", function(name, r)
     return true
 end)
 
+local appDir = "/stasis"
+local dataDir = appDir .. "/data"
 
-local log = Log:new("/stasis/data/latest.log", Log.Level.DEBUG)
-local config = Config:new("/stasis/data/user.cfg", log)
-local stasisNetMgr = Proto_Manager:new(Stasis_Proto, false, 1)
+local log = Log:new(dataDir .. "/latest.log", Log.Level.DEBUG)
+local config = Config:new(dataDir .. "/user.cfg", log)
+local stasisNetMgr = Proto_Manager:new(Stasis_Proto, false, 1, log)
 
 local redNetCmd = {}
 local terminalCmd = {}
@@ -269,6 +271,12 @@ function nodeNameExists(name)
     return false
 end
 
+if(not fs.exists(dataDir)) then
+    fs.makeDir(dataDir)
+end
+
+shell.setDir(appDir)
+
 --Load Config
 log:clear()
 config:load()
@@ -303,7 +311,6 @@ if(not config:has("timeout")) then
 end
 
 config:save()
-Stasis_Proto.logger = log
 stasisNetMgr.timeout = config:get("timeout")
 
 --Main

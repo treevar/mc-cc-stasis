@@ -6,10 +6,12 @@ local Proto_Manager = require("proto_manager")
 
 local modem = peripheral.find("modem") or nil
 
-local config = Config:new("/stasis/data/user.cfg")
-local log = Log:new("/stasis/data/latest.log", Log.Level.DEBUG)
-Stasis_Proto.logger = log
-local stasisMgr = Proto_Manager:new(Stasis_Proto, true, 1)
+local appDir = "/stasis"
+local dataDir = appDir .. "/data"
+
+local log = Log:new(dataDir .. "/latest.log", Log.Level.DEBUG)
+local config = Config:new(dataDir .. "/user.cfg", log)
+local stasisMgr = Proto_Manager:new(Stasis_Proto, true, 1, log)
 
 local shouldRun = true
 --Contains info of nodes found
@@ -193,6 +195,13 @@ end
 
 
 --Main
+
+if(not fs.exists(dataDir)) then
+    fs.makeDir(dataDir)
+end
+
+shell.setDir(appDir)
+
 log:clear()
 config:load()
 

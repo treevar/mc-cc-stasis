@@ -23,7 +23,7 @@ local redNetCmd = {}
 
 --Pings node and rerturns if it responded
 function pingNode(id, timeout)
-    stasisMgr:send(id, 200, Stasis_Proto.cmd.PING, "ping")
+    stasisMgr:send(id, 200, Stasis_Proto.CMD.PING, "ping")
     local res = stasisMgr:recv(id)
     if(res.status == 200 and res.decoded == "pong") then
         return true
@@ -117,7 +117,7 @@ terminalCmd["tp"] = function(cmd)
         print("Node not authed")
         return
     end
-    stasisMgr:send(node.id, 200, Stasis_Proto.cmd.TP, config:get("user_id"))
+    stasisMgr:send(node.id, 200, Stasis_Proto.CMD.TP, config:get("user_id"))
     local res = stasisMgr:recv(node.id)
     if(not res or res.status ~= 200) then
         print("Failed to teleport")
@@ -139,7 +139,7 @@ terminalCmd["tpas"] = function(cmd)
         print("Node not found")
         return
     end
-    stasisMgr:send(node.id, 200, Stasis_Proto.cmd.TP, cmd[3])
+    stasisMgr:send(node.id, 200, Stasis_Proto.CMD.TP, cmd[3])
     local res = stasisMgr:recv(node.id)
     if(not res) then
         print("Failed to teleport")

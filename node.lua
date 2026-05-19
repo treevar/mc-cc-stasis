@@ -97,14 +97,14 @@ end
 
 --Rednet Cmd Callbacks
 
-redNetCmd[Stasis_Proto.cmd.PING] = function(pckt)
-    stasisNetMgr:send(pckt.id, 200, Stasis_Proto.cmd.PING, "pong")
+redNetCmd[Stasis_Proto.CMD.PING] = function(pckt)
+    stasisNetMgr:send(pckt.id, 200, Stasis_Proto.CMD.PING, "pong")
 end
 
-redNetCmd[Stasis_Proto.cmd.INFO] = function(pckt)
+redNetCmd[Stasis_Proto.CMD.INFO] = function(pckt)
     --print("Received INFO cmd with data: " .. textutils.serialize(pckt))
     if(pckt.decoded.userID == nil) then
-        stasisNetMgr:send(pckt.id, 400, Stasis_Proto.cmd.TP, "No user ID provided")
+        stasisNetMgr:send(pckt.id, 400, Stasis_Proto.CMD.TP, "No user ID provided")
         return
     end
     local user = config:get("map")[pckt.decoded.userID]
@@ -112,19 +112,19 @@ redNetCmd[Stasis_Proto.cmd.INFO] = function(pckt)
     if(user ~= nil) then
         status = "1"
     end
-    stasisNetMgr:send(pckt.id, 200, Stasis_Proto.cmd.INFO, config:get("loc"), status)
+    stasisNetMgr:send(pckt.id, 200, Stasis_Proto.CMD.INFO, config:get("loc"), status)
 end
 
-redNetCmd[Stasis_Proto.cmd.TP] = function(pckt)
+redNetCmd[Stasis_Proto.CMD.TP] = function(pckt)
     if(pckt.decoded.userID == nil) then
-        stasisNetMgr:send(pckt.id, 400, Stasis_Proto.cmd.TP, "No user ID provided")
+        stasisNetMgr:send(pckt.id, 400, Stasis_Proto.CMD.TP, "No user ID provided")
         return
     end
     local user = config:get("map")[pckt.decoded.userID]
     if(user == nil) then
-        stasisNetMgr:send(pckt.id, 401, Stasis_Proto.cmd.TP, "User not set on node")
+        stasisNetMgr:send(pckt.id, 401, Stasis_Proto.CMD.TP, "User not set on node")
     else
-        stasisNetMgr:send(pckt.id, 200, Stasis_Proto.cmd.TP, "Triggering")
+        stasisNetMgr:send(pckt.id, 200, Stasis_Proto.CMD.TP, "Triggering")
         triggerStasis(user.relayIdx, user.side)
     end
 end

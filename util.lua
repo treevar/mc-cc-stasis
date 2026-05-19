@@ -38,7 +38,7 @@ function queryNode(stasisMgr, id, userID)
     if(not userID) then
         return "User ID not set, can't query"
     end
-    stasisMgr:send(id, 200, Stasis_Proto.cmd.INFO, userID)
+    stasisMgr:send(id, 200, Stasis_Proto.CMD.INFO, userID)
     local res = stasisMgr:recv(id)
     if (not res) then
         return "Timeout while waiting for response"

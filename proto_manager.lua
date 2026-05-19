@@ -1,52 +1,112 @@
-Proto_Manager = {PROTO = nil, _isClient = nil, timeout = 2}
+Proto_Manager = {PROTO = nil, _isClient = nil, timeout = 2, logger = nil}
 
-function Proto_Manager:new(proto, isClient, timeout)
+--Helper to log if we have a logger
+local function log(logger, level, ...)
+    if logger then
+        logger:log(level, ...)
+    end
+end
+
+local function statusAllowed(status, allowed)
+    for _, s in pairs(allowed) do
+        if(s == status) then
+            return true
+        end
+    end
+    return false
+end
+
+function Proto_Manager:new(proto, isClient, timeout, logger)
     local o = {}
     setmetatable(o, self)
     self.__index = self
     o.PROTO = proto
     o._isClient = isClient
     o.timeout = timeout
+    o.logger = logger
     return o
 end
 
 function Proto_Manager:decode(pckt)
-    if(not pckt or not pckt.cmd) then
+    if(not pckt or not pckt.cmd or not pckt.status or not pckt.id) then
+        log(self.logger, Log.Level.WARN, "Invalid packet to decode: " .. textutils.serialize(pckt))
+    end
+
+    local decoder = self.PROTO.decoders[pckt.cmd]
+    if(not decoder) then
+        log(self.logger, Log.Level.WARN, "No decoder for cmd " .. pckt.cmd)
         return nil
     end
-    if(pckt.status ~= 200) then
+
+    if(not statusAllowed(pckt.status, decoder.allowedStatus)) then
         if(pckt.data == nil) then
-            return pckt.status
+            return tostring(pckt.status)
         else
             return pckt.data
         end
     end
-    return self.PROTO.decodePckt(pckt.cmd, pckt, self._isClient)
+    
+    local decoded = decoder(self._isClient, pckt)
+    if(decoded == nil) then
+        log(self.logger, Log.Level.WARN, "Invalid data for cmd " .. pckt.cmd .. ": " .. textutils.serialize(pckt.data))
+    end
+    return decoded
+end
+
+function Proto_Manager:encode(cmd, status, dat)
+    if(not cmd) then
+        log(self.logger, Log.Level.WARN, "Tried to encode nil cmd")
+        return nil
+    end
+    local encoder = self.PROTO.encoders[cmd]
+    if(not encoder) then
+        log(self.logger, Log.Level.WARN, "No encoder for cmd " .. cmd)
+        return nil
+    end
+    if(not statusAllowed(status, encoder.allowedStatus)) then --Error status, just return data as is (if it exists) or status as string if not
+        if(dat == nil) then
+            return tostring(status)
+        else
+            if(type(dat) == "table") then
+                return dat[1]
+            elseif(type(dat) == "string" or type(dat) == "number") then
+                return dat
+            else
+                log(self.logger, Log.Level.WARN, "Tried to encode non-string/number/table data with status " .. status .. ": " .. textutils.serialize(dat))
+                return tostring(status)
+            end
+        end
+    end
+    
+    return encoder(self._isClient, dat)
 end
 
 --Sends a packet to a machine, cmd is the command type, ... is the data to encode for that command (varies by cmd)
 function Proto_Manager:send(id, status, cmd, ...)
-    local dat = { ... }
-    --print("DATA: " .. textutils.serialize(dat))
-    local msg = self.PROTO.encodeMsg(self._isClient, status, cmd, dat)
-    local sendMsg = { cmd = cmd, status = status, data = msg }
-    if(self._isClient) then
-        --print("Sending cmd '" .. cmd .. "with proto " .. self.PROTO.SERVER_PROTO .. "' to node " .. id .. " with data: " .. textutils.serialize(msg))
-        rednet.send(id, sendMsg, self.PROTO.SERVER_PROTO)
-    else
-        rednet.send(id, sendMsg, self.PROTO.CLIENT_PROTO)
+    if(not id or not cmd or not status) then
+        log(self.logger, Log.Level.WARN, "Tried to send message with nil id/cmd/status: " .. textutils.serialize({id, cmd, status}))
+        return false
     end
+    local dat = { ... }
+    local encoded = self:encode(cmd, status, dat)
+    local sendMsg = { cmd = cmd, status = status, data = encoded }
+    local proto = self.PROTO.SERVER_PROTO
+    if(self._isClient) then
+        proto = self.PROTO.CLIENT_PROTO
+    end
+    rednet.send(id, sendMsg, proto)
+    log(self.logger, Log.Level.DEBUG, "Sent message with proto " .. proto .. " to " .. id .. ": " .. textutils.serialize(sendMsg))
+    return true
 end
 
 --Receive a packet, returns decoded data if decode is true and raw packet if false, expects packets from expectID if set
 function Proto_Manager:recv(expectID)
-    local proto = nil
+    local proto = self.PROTO.SERVER_PROTO
     if(self._isClient) then
         proto = self.PROTO.CLIENT_PROTO
-    else
-        proto = self.PROTO.SERVER_PROTO
     end
     local id, msg = rednet.receive(proto, self.timeout)
+    log(self.logger, Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(msg or "nil"))
     
     if(not id or not msg or (expectID and id ~= expectID)) then
         return nil
@@ -55,6 +115,9 @@ function Proto_Manager:recv(expectID)
     if(msg.status == nil or msg.cmd == nil) then
         return nil
     end
+
+    --Attach ID to message so decoders can use it if needed
+    msg.id = id
 
     local res = {id = id, status = msg.status, cmd = msg.cmd, data = msg.data, decoded = self:decode(msg)}
     return res

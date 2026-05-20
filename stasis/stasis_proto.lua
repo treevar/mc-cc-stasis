@@ -32,7 +32,7 @@ Stasis_Proto.decoders = { --Functions to decode each cmd type, returns decoded d
                 end
                 return { loc = pckt.data.loc, authed = pckt.data.authed }
             end
-        return {userID = pckt.data}
+            return {userID = pckt.data}
         end
     }
 }
@@ -52,10 +52,10 @@ Stasis_Proto.encoders = { --Functions to encode data for each cmd type, returns 
             if(not isClient) then
                 local loc = data[1]
                 local authed = data[2]
-            if(not loc or not authed) then
-                return nil
-            end
-            return {loc = loc, authed = authed}
+                if(not loc or not authed) then
+                    return nil
+                end
+                return {loc = loc, authed = authed}
             else
                 return data[1] --User ID
             end

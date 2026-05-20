@@ -25,7 +25,6 @@ local terminalCmd = {}
 
 local netCodeActive = true
 local shouldRun = true
-local defState = false
 
 local function sideToUsr(relayIdx, side)
     if(util.isSide(side)) then

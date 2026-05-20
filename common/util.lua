@@ -28,7 +28,8 @@ local function isValidName(name)
         return false
     end
     if(string.find(name, " ", 1, true)) then
-        return false    end
+        return false    
+    end
     return true
 end
 

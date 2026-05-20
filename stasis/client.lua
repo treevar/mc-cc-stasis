@@ -22,6 +22,23 @@ local DEF_TIMEOUT = 2
 local terminalCmd = {}
 local redNetCmd = {}
 
+--Print info about node
+local function printNode(id)
+    local n = nodes[id]
+    if(not n) then
+        return
+    end
+    print(n.id .. ": '" .. n.loc .. "' " .. n.authed)
+end
+
+--Print all nodes with header
+local function printNodes(nodes)
+    print("ID  Loc  Authed")
+    for id, n in pairs(nodes) do
+        printNode(id)
+    end
+end
+
 --Pings node and rerturns if it responded
 local function pingNode(id, timeout)
     stasisNetMgr:send(id, 200, Stasis_Proto.CMD.PING, "ping")
@@ -75,23 +92,6 @@ local function findNodes()
     end
     print("")
     printNodes(nodes)
-end
-
---Print info about node
-local function printNode(id)
-    local n = nodes[id]
-    if(not n) then
-        return
-    end
-    print(n.id .. ": '" .. n.loc .. "' " .. n.authed)
-end
-
---Print all nodes with header
-local function printNodes(nodes)
-    print("ID  Loc  Authed")
-    for id, n in pairs(nodes) do
-        printNode(id)
-    end
 end
 
 --Resolve id/location to node

@@ -55,7 +55,7 @@ end
 --Finds all nodes currently online and queries them
 local function findNodes()
     print("Searching...")
-    local sNodes = { rednet.lookup(Stasis_Proto.SERVER_PROTO) }
+    local sNodes = { stasisNetMgr:lookup() }
     print("Found ", #sNodes, " nodes")
     if(#sNodes == 0) then
         return

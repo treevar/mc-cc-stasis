@@ -55,7 +55,7 @@ local function initRedstoneRelay(relayIdx, state)
 end
 
 local function nodeNameExists(name)
-    local node = rednet.lookup(Stasis_Proto.SERVER_PROTO, name)
+    local node = stasisNetMgr:lookup(name)
     if(node) then
         log:log(Log.Level.DEBUG, "Found existing node with name '" .. name .. "' at ID " .. node)
         return true
@@ -260,12 +260,12 @@ terminalCmd["relays"] = function(cmd)
 end
 
 terminalCmd["net"] = function(cmd)
-    rednet.host(Stasis_Proto.SERVER_PROTO, config:get("loc"))
+    stasisNetMgr:host(config:get("loc"))
     netCodeActive = true
 end
 
 terminalCmd["nonet"] = function(cmd)
-    rednet.unhost(Stasis_Proto.SERVER_PROTO)
+    stasisNetMgr:unhost()
     netCodeActive = false
 end
 
@@ -341,11 +341,12 @@ end
 
 print("Current Mappings:")
 printMappings(config:get("map"))
-rednet.host(Stasis_Proto.SERVER_PROTO, config:get("loc"))
+
+stasisNetMgr:host(config:get("loc"))
 print("Hosting stasis service")
 --Start Net and Cmd Threads
 parallel.waitForAny(procRednet, procTerminal)
 
 --Cleanup
-rednet.unhost(Stasis_Proto.SERVER_PROTO)
+stasisNetMgr:unhost()
 print("Goodbye")

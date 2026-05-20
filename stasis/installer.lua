@@ -1,5 +1,6 @@
 package.path = package.path .. ";/?.lua"
-local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua"
+--URL for GitHub Loader package
+local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua?nocache=" .. os.epoch("utc")
 local response = http.get(url)
 
 if not response then
@@ -9,6 +10,7 @@ end
 local content = response.readAll()
 response.close()
 
+--Load GitHub Loader
 if(not fs.exists("/common")) then
     fs.makeDir("/common")
 end
@@ -28,12 +30,15 @@ local filesNeeded = {
     "stasis/stasis_proto.lua"
 }
 
+--Ident client from node
+
 if(pocket) then 
     table.insert(filesNeeded, "stasis/client.lua")
 else
     table.insert(filesNeeded, "stasis/node.lua")
 end
 
+--Fetch files
 
 for i, fileName in pairs(filesNeeded) do
     print("[" .. i .. "/" .. #filesNeeded .. "] Fetching " .. fileName)

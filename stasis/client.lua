@@ -1,6 +1,6 @@
 package.path = package.path .. ";/?.lua"
-local Config = require("commno.config")
-local Log = require("commno.log")
+local Config = require("common.config")
+local Log = require("common.log")
 local Util = require("common.util")
 local Stasis_Proto = require("stasis_proto")
 local Proto_Manager = require("common.proto_manager")

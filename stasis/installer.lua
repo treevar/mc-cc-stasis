@@ -52,7 +52,7 @@ local loader = Github:new("treevar", "mc-cc", "main")
 local filesNeeded = {
     "common/config.lua",
     "common/log.lua",
-    "commom/proto_manager.lua",
+    "common/proto_manager.lua",
     "common/util.lua",
     "stasis/stasis_proto.lua"
 }

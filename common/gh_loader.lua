@@ -39,7 +39,7 @@ function GitHubLoader:get(urlPath, filePath)
     end
     --Req
     local res = http.request(url)
-    if(not res or res.getResponseCode() ~= 200) then
+    if(res == nil or res.getResponseCode() ~= 200) then
         return false
     end
     --Create Dir

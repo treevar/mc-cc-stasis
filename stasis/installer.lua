@@ -1,4 +1,3 @@
-package.path = package.path .. ";/?.lua"
 --URL for GitHub Loader package
 local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua?nocache=" .. os.epoch("utc")
 local response = http.get(url)

@@ -2,6 +2,7 @@
 Stasis_Proto = {
     CLIENT_PROTO = "stasis_res",
     SERVER_PROTO = "stasis",
+    VERSION = "1",
     CMD = {
         PING = "ping", --Ping node, returns pong
         INFO = "info", --Get info about node, returns location and if authed

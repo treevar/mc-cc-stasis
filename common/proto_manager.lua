@@ -26,6 +26,21 @@ function Proto_Manager:_log(level, ...)
     end
 end
 
+--Appends version to proto and returns it
+--This is the actual protocol used on rednet
+--if isClient is true then the client proto is returned, else the server proto is
+--if isClient is nil then self._isClient is used
+function Proto_Manager:getProtoString(isClient)
+    if(isClient == nil) then
+        isClient = self._isClient
+    end
+    local proto = self.PROTO.SERVER_PROTO
+    if(isClient) then
+        proto = self.PROTO.CLIENT_PROTO
+    end
+    return proto .. self.PROTO.VERSION
+end
+
 function Proto_Manager:decode(pckt)
     if(not pckt or not pckt.cmd or not pckt.status or not pckt.id) then
         self:_log(Log.Level.WARN, "Invalid packet to decode: " .. textutils.serialize(pckt))
@@ -89,21 +104,15 @@ function Proto_Manager:send(id, status, cmd, ...)
     local dat = { ... }
     local encoded = self:encode(cmd, status, dat)
     local sendMsg = { cmd = cmd, status = status, data = encoded }
-    local proto = self.PROTO.SERVER_PROTO
-    if(self._isClient) then
-        proto = self.PROTO.CLIENT_PROTO
-    end
+    local proto = self:getProtoString(not self._isClient) --Inverse because we need to send to the other proto
     rednet.send(id, sendMsg, proto)
     self:_log(Log.Level.DEBUG, "Sent message with proto " .. proto .. " to " .. id .. ": " .. textutils.serialize(sendMsg))
     return true
 end
 
---Receive a packet, returns decoded data if decode is true and raw packet if false, expects packets from expectID if set
+--Receive a packet, returns decoded data or nil if failed
 function Proto_Manager:recv(expectID)
-    local proto = self.PROTO.SERVER_PROTO
-    if(self._isClient) then
-        proto = self.PROTO.CLIENT_PROTO
-    end
+    local proto = self:getProtoString()
     local id, pckt = rednet.receive(proto, self.timeout)
     self:_log(Log.Level.DEBUG, "Received message with proto " .. proto .. " from " .. (id or "nil") .. ": " .. textutils.serialize(pckt or "nil"))
     
@@ -120,6 +129,23 @@ function Proto_Manager:recv(expectID)
 
     local res = {id = id, status = pckt.status, cmd = pckt.cmd, data = pckt.data, decoded = self:decode(pckt)}
     return res
+end
+
+function Proto_Manager:host(hostname)
+    --Clients shouldnt be hosting, so force to server proto
+    local proto = self:getProtoString(false)
+    rednet.host(proto, hostname)
+end
+
+function Proto_Manager:unhost()
+    local proto = self:getProtoString(false)
+    rednet.unhost(proto)
+end
+
+--Lookup devices hosting the server protocol
+function Proto_Manager:lookup(host)
+    local proto = self:getProtoString(false)
+    return rednet.lookup(proto, host)
 end
 
 return Proto_Manager

@@ -48,7 +48,7 @@ function Config:save(fileName)
     local file = fs.open(fileName, "w")
     file.write(textutils.serialize(self.data))
     file.close()
-    log(self, Log.Level.INFO, "Saved config to ", fileName)
+    self:_log(self, Log.Level.INFO, "Saved config to ", fileName)
 end
 
 function Config:has(key)

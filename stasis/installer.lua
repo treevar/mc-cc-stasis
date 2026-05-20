@@ -35,7 +35,7 @@ else
 end
 
 
-for i, fileName in filesNeeded do
+for i, fileName in pairs(filesNeeded) do
     print("[" .. i .. "/" .. #filesNeeded .. "] Fetching " .. fileName)
     loader:get(fileName)
 end

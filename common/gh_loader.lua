@@ -1,7 +1,7 @@
 GitHubLoader = {user = nil, repo = nil, branch = nil}
 
 function GitHubLoader:new(user, repo, branch)
-    o = {}
+    local o = {}
     setmetatable(o, self)
     o.user = user
     o.repo = repo

@@ -1,11 +1,11 @@
 --Stasis Installer
 --Process args
 local args = { ... }
-local createStartup = false
+local createStartup = true
 local runAfterInstall = false
 if(#args > 0) then
     for _, arg in pairs(args) do
-        if(arg == "startup") then
+        if(arg == "nostartup") then
             createStartup = true
         elseif(arg == "run") then
             runAfterInstall = true

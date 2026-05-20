@@ -2,12 +2,12 @@
 --Process args
 local args = { ... }
 local isClient = nil
-local createStartup = false
+local createStartup = true
 local runAfterInstall = false
 if(#args > 0) then
     for _, arg in pairs(args) do
-        if(arg == "startup") then
-            createStartup = true
+        if(arg == "nostartup") then
+            createStartup = false
         elseif(arg == "run") then
             runAfterInstall = true
         elseif(arg == "node") then

@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 treevar. All rights reserved.
+-- Licensed under the Custom MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
 Log = {fileName = "log.txt", curLogLevel = 0, enabled = true}
 
 Log.Level = {

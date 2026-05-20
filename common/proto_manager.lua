@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 treevar. All rights reserved.
+-- Licensed under the Custom MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
 Proto_Manager = {PROTO = nil, _isClient = nil, timeout = 2, logger = nil}
 
 local function statusAllowed(status, allowed)

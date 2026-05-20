@@ -8,8 +8,12 @@ local Proto_Manager = require("common.proto_manager")
 local modem = peripheral.find("modem", function(name, peripheral) return peripheral.isWireless() end)
 local relay = {}
 local wrappedRelay = peripheral.find("redstone_relay", function(name, r)
-    local idx = string.sub(name, #"redstone_relay_" + 1, #name)
-    relay[idx] = r
+    if(Util.isSide(name)) then
+        relay[name] = r
+    else
+        local idx = string.sub(name, #"redstone_relay_" + 1, #name)
+        relay[idx] = r
+    end
     return true
 end)
 

@@ -1,3 +1,4 @@
+package.path = package.path .. ";/?.lua"
 local Config = require("common.config")
 local Log = require("common.log")
 local Util = require("common.util")

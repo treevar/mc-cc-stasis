@@ -65,9 +65,9 @@ local function nodeNameExists(name)
 end
 
 local function printMappings(map)
-    print("User   Relay  Side")
+    print("User   Relay Side")
     for k, v in pairs(map) do
-        print(k, v.relayIdx, v.side)
+        print(k .. " " .. v.relayIdx .. "     " .. v.side)
     end
 end
 

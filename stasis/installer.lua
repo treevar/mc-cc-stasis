@@ -1,6 +1,5 @@
 package.path = package.path .. ";/?.lua"
-
-local url = "https://raw.githubusercontent.com/treevar/mc-cc/main/common/gh_loader.lua"
+local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua"
 local response = http.get(url)
 
 if not response then
@@ -15,8 +14,8 @@ if(not fs.exists("/common")) then
 end
 
 local file = fs.open("common/gh_loader.lua", "w")
-file:write(content)
-file:close()
+file.write(content)
+file.close()
 
 local Github = require("common.gh_loader")
 local loader = Github:new("treevar", "mc-cc", "main")

@@ -53,3 +53,5 @@ function GitHubLoader:get(urlPath, filePath)
     res.close()
     return true
 end
+
+return GitHubLoader

@@ -38,7 +38,7 @@ function GitHubLoader:get(urlPath, filePath)
         return false
     end
     --Req
-    local res = http.request(url)
+    local res = http.get(url)
     if(res == nil or res.getResponseCode() ~= 200) then
         return false
     end

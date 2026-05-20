@@ -82,6 +82,10 @@ end
 --Create startup file
 if(createStartup) then
     print("Creating startup file")
+    --Create startup folder if NX
+    if(not fs.exists("/startup")) then
+        fs.makeDir("/startup")
+    end
     local startFile = fs.open("/startup/stasis_loader.lua", "w")
     startFile.write("shell.run(\"" .. entryPoint .. "\")")
     startFile.close()

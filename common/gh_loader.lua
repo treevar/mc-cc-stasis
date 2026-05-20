@@ -7,6 +7,7 @@ function GitHubLoader:new(user, repo, branch)
     o.repo = repo
     o.branch = branch or "main"
     self.__index = self
+    return o
 end
 
 function GitHubLoader:checkUrl(url)

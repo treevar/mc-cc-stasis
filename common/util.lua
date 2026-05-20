@@ -32,4 +32,4 @@ local function isValidName(name)
     return true
 end
 
-return {isSide = isSide, split = split, isValidName = isValidName, queryNode = queryNode}
+return {isSide = isSide, split = split, isValidName = isValidName}

@@ -71,7 +71,7 @@ table.insert(filesNeeded, entryPoint)
 --Fetch files
 
 for i, fileName in pairs(filesNeeded) do
-    write("[" .. i .. "/" .. #filesNeeded .. "] Fetching '" .. fileName "' ")
+    write("[" .. i .. "/" .. #filesNeeded .. "] Fetching '" .. fileName .. "' ")
     if(not loader:get(fileName)) then
         write("FAIL\n")
     else

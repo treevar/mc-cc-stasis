@@ -1,5 +1,5 @@
 package.path = package.path .. ";/?.lua"
-local util = require("common.util")
+local Util = require("common.util")
 local Config = require("common.config")
 local Log = require("common.log")
 local Stasis_Proto = require("stasis_proto")
@@ -27,7 +27,7 @@ local netCodeActive = true
 local shouldRun = true
 
 local function sideToUsr(relayIdx, side)
-    if(util.isSide(side)) then
+    if(Util.isSide(side)) then
         for key, value in pairs(config:get("map")) do
             if(value.relayIdx ~= relayIdx) then
                 return nil
@@ -111,7 +111,7 @@ end
 local function procTerminal()
     while shouldRun do
         write(config:get("loc") .. "> ")
-        local cmd = util.split(read(), ' ') --Yields
+        local cmd = Util.split(read(), ' ') --Yields
         if(#cmd > 0) then
             if(terminalCmd[cmd[1]]) then
                 terminalCmd[cmd[1]](cmd)
@@ -182,7 +182,7 @@ terminalCmd["set"] = function(cmd)
     local userID = cmd[2]
     local side = cmd[3]
     local relayIdx = cmd[4]
-    if(not util.isSide(side)) then
+    if(not Util.isSide(side)) then
         print("Invalid side")
         return
     end
@@ -207,7 +207,7 @@ terminalCmd["clear"] = function(cmd)
         return
     end
     if(cmd[2] == "side") then
-        if(not util.isSide(cmd[3])) then
+        if(not Util.isSide(cmd[3])) then
             print("Invalid side")
             return
         end

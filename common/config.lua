@@ -1,5 +1,5 @@
-local util = require("util")
-local Log = require("log")
+local util = require("common.util")
+local Log = require("common.log")
 
 Config = {fileName = "default.cfg", data = {}, logger = nil}
 

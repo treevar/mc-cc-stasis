@@ -1,5 +1,34 @@
+--Stasis Installer
+--Process args
+local args = { ... }
+local isClient = nil
+local createStartup = false
+local runAfterInstall = false
+if(#args > 0) then
+    for _, arg in pairs(args) do
+        if(arg == "startup") then
+            createStartup = true
+        elseif(arg == "run") then
+            runAfterInstall = true
+        elseif(arg == "node") then
+            isClient = false
+        elseif(arg == "client") then
+            isClient = true
+        end
+    end 
+end
+
+if(isClient == nil) then
+    if(pocket) then
+        isClient = true
+    else
+        isClient = false
+    end
+end
+
+--Load GitHub Loader
 --URL for GitHub Loader package
-local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua?nocache=" .. os.epoch("utc")
+local url = "https://raw.githubusercontent.com/treevar/mc-cc/refs/heads/main/common/gh_loader.lua"
 local response = http.get(url)
 
 if not response then
@@ -9,7 +38,6 @@ end
 local content = response.readAll()
 response.close()
 
---Load GitHub Loader
 if(not fs.exists("/common")) then
     fs.makeDir("/common")
 end
@@ -29,17 +57,39 @@ local filesNeeded = {
     "stasis/stasis_proto.lua"
 }
 
---Ident client from node
+--Add proper entry point file
+local entryPoint = ""
 
-if(pocket) then 
-    table.insert(filesNeeded, "stasis/client.lua")
+if(isClient) then 
+    entryPoint = "stasis/client.lua"
 else
-    table.insert(filesNeeded, "stasis/node.lua")
+    entryPoint = "stasis/node.lua"
 end
+
+table.insert(filesNeeded, entryPoint)
 
 --Fetch files
 
 for i, fileName in pairs(filesNeeded) do
-    print("[" .. i .. "/" .. #filesNeeded .. "] Fetching " .. fileName)
-    loader:get(fileName)
+    write("[" .. i .. "/" .. #filesNeeded .. "] Fetching '" .. fileName "' ")
+    if(not loader:get(fileName)) then
+        write("FAIL\n")
+    else
+        write("OK\n")
+    end
+end
+
+--Create startup file
+if(createStartup) then
+    print("Creating startup file")
+    local startFile = fs.open("/startup/stasis_loader.lua", "w")
+    startFile.write("shell.run(\"" .. entryPoint .. "\")")
+    startFile.close()
+end
+
+print("Done")
+
+--Execute program
+if(runAfterInstall) then
+    shell.run(entryPoint)
 end

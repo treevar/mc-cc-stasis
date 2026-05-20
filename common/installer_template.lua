@@ -45,13 +45,24 @@ local filesNeeded = {
 local entryPoint = "/path/to/entry_point.lua"
 
 --Fetch files
+local fails = {}
 for i, fileName in pairs(filesNeeded) do
     write("[" .. i .. "/" .. #filesNeeded .. "] Fetching '" .. fileName .. "' ")
     if(not loader:get(fileName)) then
+        table.insert(fails, fileName)
         write("FAIL\n")
     else
         write("OK\n")
     end
+end
+
+if(#fails > 0) then
+    print("Failled to fetch " .. #fails .. "/" .. #filesNeeded .. " files")
+    for _, fileName in pairs(filesNeeded) do
+        write("X ")
+        print(fileName)
+    end
+    return
 end
 
 --Create startup file

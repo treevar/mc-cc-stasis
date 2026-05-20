@@ -23,10 +23,10 @@ Stasis - Ender Pearl Stasis System
        - tp [node_id/location]: Trigger stasis chamber at specified node
        - exit - Exit gracefully
    + Node
-       - set [userID] [side] [relay Idx]: Maps a userID to side of redstone relay
-       - clear (user/side) [userID/side] {relay Idx}: Clears a user from any relay or a side of a specific relay
+       - set [userID] [side] [relayID]: Maps a userID to side of redstone relay
+       - clear (user/side) [userID/side] {relayID}: Clears a user from any relay or a side of a specific relay
        - save: Saves config to disk
        - map: Prints current user mappings
        - relays: Prints relay IDs connected
-       - config {key} {value}: Prints entire config, prints specific key, sets key's value
+       - config {key} {value}: Prints entire config, prints specific key, or sets key's value
        - exit - Exit gracefully

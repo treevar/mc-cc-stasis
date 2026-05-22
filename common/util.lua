@@ -42,4 +42,4 @@ local function tableContains(table, val)
     return false
 end
 
-return {isSide = isSide, split = split, isValidName = isValidName}
+return {isSide = isSide, split = split, isValidName = isValidName, tableContains = tableContains}

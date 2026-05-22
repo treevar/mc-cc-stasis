@@ -7,16 +7,21 @@ local loader = Github:new("treevar", "mc-cc", "main")
 
 local userIn = nil
 
+local shouldRun = true
 
 print("[GH fileName] {local file}")
 
-while (userIn ~= "exit") do
+while shouldRun do
     userIn = Util.prompt("Enter file: ")
-    print("Fetching...")
-    local args = Util.split(userIn, ' ')
-    if(not loader:get(args[1], args[2])) then
-        print("Unable to fetch file")
+    if(userIn == "..") then --Not allowed in url, so it can safely be used to exit
+        shouldRun = false
     else
-        print("OK")
+        print("Fetching...")
+        local args = Util.split(userIn, ' ')
+        if(not loader:get(args[1], args[2])) then
+            print("Unable to fetch file")
+        else
+            print("OK")
+        end
     end
 end

@@ -33,4 +33,13 @@ local function isValidName(name)
     return true
 end
 
+local function tableContains(table, val)
+    for _, v in pairs(table) do
+        if(v == val) then
+            return true
+        end
+    end
+    return false
+end
+
 return {isSide = isSide, split = split, isValidName = isValidName}

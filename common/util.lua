@@ -42,4 +42,19 @@ local function tableContains(table, val)
     return false
 end
 
-return {isSide = isSide, split = split, isValidName = isValidName, tableContains = tableContains}
+local function prompt(prompt, validVals)
+    local valid = false
+    local userIn = nil
+    while (not valid) do
+        write(prompt)
+        userIn = read()
+        if(#userIn ~= 0) then
+            if(validVals == nil or tableContains(validVals, userIn)) then
+                valid = true
+            end
+        end
+    end
+    return userIn
+end
+
+return {isSide = isSide, split = split, isValidName = isValidName, tableContains = tableContains, prompt = prompt}

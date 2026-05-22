@@ -1,3 +1,5 @@
+-- Copyright (c) 2026 treevar. All rights reserved.
+-- Licensed under a modified MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
 local function isSide(side)
     return  side == "top" or 
             side == "bottom" or 

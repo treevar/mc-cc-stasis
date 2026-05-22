@@ -1,5 +1,5 @@
 -- Copyright (c) 2026 treevar. All rights reserved.
--- Licensed under the Custom MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
+-- Licensed under a modified MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
 package.path = package.path .. ";/?.lua"
 local Util = require("common.util")
 local Config = require("common.config")

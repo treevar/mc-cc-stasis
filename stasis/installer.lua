@@ -85,7 +85,7 @@ end
 
 if(#fails > 0) then
     print("Failled to fetch " .. #fails .. "/" .. #filesNeeded .. " files")
-    for _, fileName in pairs(filesNeeded) do
+    for _, fileName in pairs(fails) do
         write("X ")
         print(fileName)
     end

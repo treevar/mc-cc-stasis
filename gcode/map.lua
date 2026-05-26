@@ -307,4 +307,15 @@ GCode.code = {
         desc = "Return from subprogram"
         --No modal
     },
+    --Jokes
+    M08 = {
+        str = "M08",
+        desc = "Flood coolant"
+        --No modal
+    },
+    M09 = {
+        str = "M09",
+        desc = "Coolant off"
+        --No modal
+    }
 }

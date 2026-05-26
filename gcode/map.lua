@@ -51,7 +51,6 @@ GCode.modal = {
     MOTION = "MOTION",
     PLANE = "PLANE",
     DISTANCE = "DISTANCE",
-    UNIT = "UNIT",
     SCALE = "SCALE",
     CANNED = "CANNED",
     WCS = "WCS",
@@ -63,11 +62,6 @@ GCode.plane = {
     XY = "XY",
     ZX = "ZX",
     YZ = "YZ"
-}
-
-GCode.unit = {
-    IN = "IN",
-    MM = "MM"
 }
 
 GCode.coordMode = {
@@ -179,16 +173,6 @@ GCode.code = {
         str = "G19",
         desc = "Select YZ plane",
         modal = GCode.modal.PLANE
-    },
-    G20 = {
-        str = "G20",
-        desc = "Set units to inches",
-        modal = GCode.modal.UNIT
-    },
-    G21 = {
-        str = "G21",
-        desc = "Set units to millimeters",
-        modal = GCode.modal.UNIT
     },
     G28 = {
         str = "G28",

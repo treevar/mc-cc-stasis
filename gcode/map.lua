@@ -80,37 +80,24 @@ GCode.motionMode = {
 --Inclusive
 GCode.validParam = { --Params that may be used by commands, any others are ignored
     --Coords
-    X = GCode.worldLimits.X,
-    Y = GCode.worldLimits.Y,
-    Z = GCode.worldLimits.Z,
+    X = "X",
+    Y = "Y",
+    Z = "Z",
     --Arc
-    I = GCode.worldLimits.X, --X center point
-    J = GCode.worldLimits.Y, --Y center point,
-    K = GCode.worldLimits.Z, --Z center point,
-    R = { --Radius of arc
-        min = 0,
-        max = GCode.worldLimits.X.max
-    },
-
-    T = { --Tool
-        min = 1,
-        max = 16,
-    },
-    Q = { --Quantity
-        min = 0,
-        max = 64
-    },
-    P = { --Dwell time
-        float = true --Allow floating point numbers
-    },
-    L = { --Param tag
+    I = "I", --X center point
+    J = "J", --Y center point,
+    K = "K", --Z center point,
+    R = "R",
+    T = "T",
+    Q = "Q",
+    P = "P", --Dwell time
+    L = "L", --[[
         validVal = {
             [2] = true, --Set absolute pos
             [3] = true, --Set dimension
             [10] = true, --Define tool slot
             [20] = true --Set heading
-        }
-    }
+        }]]
 }
 
 GCode.code = {

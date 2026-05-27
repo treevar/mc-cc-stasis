@@ -2,103 +2,111 @@
 -- Licensed under a modified MIT License <https://github.com/treevar/mc-cc/blob/main/LICENSE>
 
 -- GCode mappings
-GCode = {}
---Inclusive
-GCode.worldLimits = {
-    X = {
-        min = {
-            overworld = -29999984,
-            nether = -29999984,
-            ender = -29999984
+GCode = {
+    worldLimits = {
+        X = {
+            min = {
+                overworld = -29999984,
+                nether = -29999984,
+                ender = -29999984
+            },
+            max = {
+                overworld = 29999984,
+                nether = 29999984,
+                ender = 29999984
+            },
         },
-        max = {
-            overworld = 29999984,
-            nether = 29999984,
-            ender = 29999984
+        Y = {
+            min = {
+                overworld = -64,
+                nether = 0,
+                ender = 0
+            },
+            max = {
+                overworld = 319,
+                nether = 255,
+                ender = 255
+            },
         },
-        float = true
+        Z = {
+            min = {
+                overworld = -29999984,
+                nether = -29999984,
+                ender = -29999984
+            },
+            max = {
+                overworld = 29999984,
+                nether = 29999984,
+                ender = 29999984
+            },
+        }
     },
-    Y = {
-        min = {
-            overworld = -64,
-            nether = 0,
-            ender = 0
-        },
-        max = {
-            overworld = 319,
-            nether = 255,
-            ender = 255
-        },
-        float = true
+    modal = {
+        --G
+        MOTION = "MOTION",
+        PLANE = "PLANE",
+        DISTANCE = "DISTANCE",
+        SCALE = "SCALE",
+        CANNED = "CANNED",
+        WCS = "WCS",
+        --M
+        PROG_FLOW = "PROG_FLOW"
     },
-    Z = {
-        min = {
-            overworld = -29999984,
-            nether = -29999984,
-            ender = -29999984
-        },
-        max = {
-            overworld = 29999984,
-            nether = 29999984,
-            ender = 29999984
-        },
-        float = true
+    plane = {
+        XY = "XY",
+        ZX = "ZX",
+        YZ = "YZ"
+    },
+    coordMode = {
+        ABS = "ABS",
+        REL = "REL"
+    },
+    motionMode = {
+        MOVE = "MOVE", --No cut
+        LINE = "LINE", --Cut
+        CIRC_CW = "CIRC_CW",
+        CIRC_CCW = "CIRC_CCW",
+        DRILL = "DRILL"
+    },
+    validParam = { --Params that may be used by commands, any others are ignored
+        --Coords
+        X = "X",
+        Y = "Y",
+        Z = "Z",
+        --Arc
+        I = "I", --X center point
+        J = "J", --Y center point,
+        K = "K", --Z center point,
+        R = "R",
+        T = "T",
+        Q = "Q",
+        P = "P", --Dwell time
+        L = "L", --[[
+            validVal = {
+                [2] = true, --Set absolute pos
+                [3] = true, --Set dimension
+                [10] = true, --Define tool slot
+                [20] = true --Set heading
+            }]]
+    },
+    error = {
+        GRID = "Grid violation",
+        SYNTAX = "Invalid syntax",
+        CMD_UNKNOWN = "Unknown command",
+        FILE_NAME = "Can't find file",
+        FILE_OPEN = "Can't open file",
     }
 }
 
-GCode.modal = {
-    --G
-    MOTION = "MOTION",
-    PLANE = "PLANE",
-    DISTANCE = "DISTANCE",
-    SCALE = "SCALE",
-    CANNED = "CANNED",
-    WCS = "WCS",
-    --M
-    PROG_FLOW = "PROG_FLOW"
-}
+GCode.allParamsStr = ""
 
-GCode.plane = {
-    XY = "XY",
-    ZX = "ZX",
-    YZ = "YZ"
-}
+for p, v in pairs(GCode.validParam) do
+    GCode.allParamsStr = GCode.allParamsStr .. p
+end
 
-GCode.coordMode = {
-    ABS = "ABS",
-    REL = "REL"
-}
+GCode.allCmdLettersStr = "GM"
 
-GCode.motionMode = {
-    MOVE = "MOVE", --No cut
-    LINE = "LINE", --Cut
-    CIRC_CW = "CIRC_CW",
-    CIRC_CCW = "CIRC_CCW",
-    DRILL = "DRILL"
-}
-
---Inclusive
-GCode.validParam = { --Params that may be used by commands, any others are ignored
-    --Coords
-    X = "X",
-    Y = "Y",
-    Z = "Z",
-    --Arc
-    I = "I", --X center point
-    J = "J", --Y center point,
-    K = "K", --Z center point,
-    R = "R",
-    T = "T",
-    Q = "Q",
-    P = "P", --Dwell time
-    L = "L", --[[
-        validVal = {
-            [2] = true, --Set absolute pos
-            [3] = true, --Set dimension
-            [10] = true, --Define tool slot
-            [20] = true --Set heading
-        }]]
-}
+GCode.allLettersStr = GCode.allCmdLettersStr .. GCode.allParamsStr
 
 GCode.code = {
     G00 = {

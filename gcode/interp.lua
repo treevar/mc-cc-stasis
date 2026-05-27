@@ -6,36 +6,10 @@ local GCode = require("gcode.map")
 local Util = require("common.util")
 
 Interp = {
-    state = {
-        x = 0,
-        y = 0,
-        z = 0,
-
-        heading = 0,
-        plane = GCode.plane.XY,
-        activeTool = 0,
-        dwellTime = 0,
-        unit = GCode.units.MM,
-        scale = 1.0,
-        coordMode = GCode.coordMode.ABS,
-        motionMode = nil,
-        retractPlane = nil,
-
-        activeWCS = "G54",
-        wcs = { --Indices are the cmd string, it's easier
-            ["G54"] = {x = 0, y = 0, z = 0},
-            ["G55"] = {x = 0, y = 0, z = 0},
-            ["G56"] = {x = 0, y = 0, z = 0},
-            ["G57"] = {x = 0, y = 0, z = 0},
-            ["G58"] = {x = 0, y = 0, z = 0},
-            ["G59"] = {x = 0, y = 0, z = 0},
-        },
-        callStack = {},
-        halted = false,
-    },
     reg = { --Command registers
-
+        halted = false
     },
+
     haltMsg = ""
 }
 
@@ -49,10 +23,19 @@ function Interp:new()
     return o
 end
 
-function Interp:halt(reason)
-    self.haltMsg = reason
-    self.state.halted = true
+function Interp.constructErrMsg(err, idx)
+    return err .. " at pos " .. idx
 end
+
+function Interp:halt(reason, idx)
+    if(type(idx) == "number") then
+        self.haltMsg = Interp.constructErrMsg(reason, idx)
+    else
+        self.haltMsg = reason
+    end
+    self.reg.halted = true
+end
+
 
 --Validation
 
@@ -79,34 +62,27 @@ function Interp.validLetter(l)
     return l == "M" or l == "G" or GCode.validParam[l] ~= nil
 end
 
---Validates letters,
---Ensures only valid chars,
---Ensures decimal place is between numbers,
---Ensures number follows letter
---Line starts with a valid letter
-function Interp.validateLine(line)
+--Validates that the command follows proper syntax
+--If atleast one syntax violation is found, the index of the first violation will be returned
+--Otherwise returns nil
+function Interp.getBadSyntaxIndex(line)
     if(line == nil) then return nil end
     if(#line == 0) then return nil end
 
-    local validLetters = "GM"
-    for _, l in pairs(GCode.validParam) do
-        validLetters = validLetters .. l
-    end
-
     local patterns = {
-        "^[^" .. validLetters .."]", --Starts with a non valid char
-        "[^%d" .. validLetters .. "%.]", --Match any that are NOT digit, valid, or dot
-        string.rep("[" .. validLetters .. "]", 2), --Match multiple concurrent letters 
-        "[%D]%.", --Dot trailing a non digit
-        "%.[%D]", --Dot preceding a non digit
+        "^[^" .. GCode.validParamsStr .."]",                --Starts with a non valid char (Must start with a letter)
+        "[^%d" .. GCode.validLettersStr .. "%.]",            --Match any that are NOT digit, valid, or dot
+        string.rep("[" .. GCode.validLettersStr .. "]", 2),  --Match multiple concurrent letters 
+        "[%D]%.",                                   --Dot trailing a non digit
+        "%.[%D]",                                   --Dot preceding a non digit
         --"%.0-[123456789]" --Non zero following dot
     }
-    local idx = nil
+    local lowestIdx = nil
     for _, p in pairs(patterns) do
-        idx = string.find(line, p)
-        if(idx) then return idx end
+        local idx = string.find(line, p)
+        if(idx and idx < lowestIdx) then lowestIdx = idx end
     end
-    return nil
+    return lowestIdx
 end
 
 --Parsing
@@ -121,40 +97,7 @@ function Interp.cleanLine(line)
     return clean
 end
 
---Parse 'G00' and returns .letter = 'G', .val = "00"
-function Interp.parseCmdPart(cmd)
-    if(#cmd < 2) then return nil end --Need atleast letter and a digit
-    local retObj = {}
-    retObj.letter = string.upper(string.sub(cmd, 1, 2))
-    retObj.val = string.sub(cmd, 2)
-    return retObj
-end
-
 --Parse entire line
---[[Returns array of each parsed part
-    {
-        G00 = { --If command
-            cmd (from gcode map),
-            args = {
-                K = 10,
-                X = 9,
-                ...
-            }
-        },...
-        --If arg only
-        X = 1, 
-        Y = 2
-    }
-    OR
-    Arg index of bad arg
-]]
--- Remove all whitespace
--- Parsing is easy
--- If we dont start with a letter -> HALT
--- If letter with no value -> HALT
--- store letter and then parse until we find the next letter to get our number
--- Repeat
--- Return registers
 function Interp.parseLine(line)
     local retObj = {
         modal = {},
@@ -170,85 +113,71 @@ function Interp.parseLine(line)
     local pString = Interp.cleanLine(line)
     retObj.parsingStr = pString
 
-    retObj.badIdx = Interp.validateLine(pString)
+    retObj.badIdx = Interp.getBadSyntaxIndex(pString)
     if(retObj.badIdx ~= nil) then
-        retObj.failureStr = "Invalid syntax"
+        retObj.failureStr = GCode.error.SYNTAX
         return retObj
     end
     local curLetter = string.sub(pString, 1, 1)
 
-    local curValStart = startIdx + 1
-    local foundDot = false
-    for i = startIdx + 1, #pString do
-        if(retObj.badIdx ~= 0) then return retObj end --Last char caused parsing failure
-        local c = pString:sub(i, i)
-        if(inComment) then
-            if(c == ")") then inComment = false end
-        else
-            if(c:match("%a")) then --Letter
-                --Set value for prev letter
-                foundDot = false
-                local numStr = pString:sub(curValStart, i-1)
-                local num = tonumber(numStr)
-                if(num == nil) then
-                    retObj.badIdx = i
-                    retObj.failureStr = "Failure parsing number"
-                else
-                    if(curLetter == "G" or curLetter == "M") then
-                        local cmd = GCode.cmd[curLetter .. numStr]
-                        if(cmd == nil) then
-                            retObj.badIdx = i
-                            retObj.failureStr = "Unknown command"
-                        else
-                            if(cmd.modal == nil) then
-                                table.insert(retObj.nonModal, cmd)
-                            else
-                                retObj.modal[cmd.modal] = cmd
-                            end
-                        end
-                    else
-                        retObj.args[curLetter] = num
-                    end
-                end
-                if(not Interp.validLetter(c)) then
-                    retObj.badIdx = i
-                    retObj.failureStr = "Illegal character"
-                else
-                    curLetter = c
-                end
-            elseif(c:match("%d")) then --Number
-                if(foundDot and tonumber(c) ~= 0) then --Non 0 after decimal point
-                    retObj.badIdx = i
-                    retObj.failureStr = "Grid violation"
-                end
+    local curPartStart = 1
+
+    local loopFn = function(i)
+        local part = pString:sub(curPartStart, i-1)
+        local cmd = GCode.cmd[part]
+        if(cmd ~= nil) then
+            if(cmd.modal) then
+                retObj.modal[cmd.modal] = cmd
             else
-                if(c == "(") then inComment = true
-                elseif((c == "." and foundDot) or c ~= ".") then 
-                    retObj.badIdx = i
-                    retObj.failureStr = "Illegal character"
-                else
-                    foundDot = true
-                end
+                table.insert(retObj.nonModal, cmd)
             end
+        else --Parameter
+            if(GCode.allCmdLettersStr:find(curLetter, 1, true)) then
+                retObj.badIdx = curPartStart
+                retObj.failureStr = GCode.error.CMD_UNKNOWN
+                return
+            end
+            retObj.args[curLetter] = pString:sub(curPartStart+1, i-1)
         end
     end
 
-    if(inComment) then
-        retObj.badIdx = #pString
-        retObj.failureStr = "No comment closure"
+    for i = 2, #pString do
+        if(retObj.badIdx ~= nil) then return retObj end --Last loop iter caused parsing failure
+        local c = pString:sub(i, i)
+        if(c:match("%a")) then --Letter
+            loopFn(i)
+            curLetter = c
+            curPartStart = i
+        end
     end
+
+    loopFn(#pString + 1) --Add last cmd
     
     return retObj
 end
 
 function Interp:read(fileName)
-    if(fileName == nil or #fileName == 0) then
-        self:halt("Bad file name")
+    if(fileName == nil or #fileName == 0 or not fs.exists(fileName)) then
+        self:halt(GCode.error.FILE_NX)
         return
     end
     local file = fs.open(fileName)
     if(file == nil) then
-        self:halt("Can't open file")
+        self:halt(GCode.error.FILE_OPEN)
         return
     end
+    local line = file.readLine()
+    local parsed = nil
+    while line do
+        if(#line > 1) then
+            parsed = Interp.parseLine(line)
+            if(parsed.badIdx) then
+                self:halt(parsed.failureStr, parsed.badIdx)
+                file.close()
+                return
+            end
+            line = file.readLine()
+        end
+    end
+    file.close()
 end

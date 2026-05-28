@@ -6,14 +6,35 @@ local GCode = require("gcode.map")
 local Util = require("common.util")
 
 Interp = {
-    reg = { --Command registers
-        halted = false
+    curBlock = { --Current block values
+        
     },
-
+    state = { --Machine state
+        x = 0,
+        y = 0,
+        z = 0,
+        heading = 0,
+        plane = GCode.plane.XZ, 
+        wcs = "G54",
+        modal = {},
+        halted = GCode.haltType.NONE,
+    },
+    programStack = {
+        --[[
+        {
+            name = "01900.nc",
+            lineArgs = {
+                #1 = 34,
+                #2 = 5,
+                ...
+                #6 = 3
+            }, --Args passed on line that called this
+            lineNum = 0
+        }
+        ]]
+    },
     haltMsg = ""
 }
-
-Interp.handler = {}
 
 Interp.__index = Interp
 
@@ -27,39 +48,83 @@ function Interp.constructErrMsg(err, idx)
     return err .. " at pos " .. idx
 end
 
-function Interp:halt(reason, idx)
+--Can be called to signal that the machine should halt
+function Interp:halt(haltType, reason, idx)
     if(type(idx) == "number") then
         self.haltMsg = Interp.constructErrMsg(reason, idx)
     else
         self.haltMsg = reason
     end
-    self.reg.halted = true
+    self.state.halted = haltType
 end
 
+function Interp:_terminate()
+    local prog = self.programStack[#self.programStack]
+    local hType = self.state.halted
+    write("[HALT] ")
+    if(hType == GCode.haltType.MACHINE) then write("Machine")
+    elseif(hType == GCode.haltType.STOP) then write("Program")
+    elseif(hType == GCode.haltType.WAIT) then write("Wait (this shouldnt be here)")
+    else write("(Unknown Type)")
+    end
+    print(" halted on line " .. prog.lineNum .. " in program " .. prog.name)
+    if(hType == GCode.haltType.STOP) then
+        error("Program terminated successfully", 0)
+    end
+    error(self.haltMsg, 0)
+end
+
+function Interp:resetHalt()
+    self.state.halted = GCode.haltType.NONE
+    self.haltMsg = ""
+end
+
+function Interp:getParamRaw(letter, stateIfNil)
+    local val = self.curBlock.args[letter]
+    if(val ~= nil) then return nil end
+    if(stateIfNil) then return self.state[letter] end
+    return nil
+end
+
+function Interp:getParam(cmd, letter, stateIfNil)
+    local val = self:getParamRaw(letter, stateIfNil)
+    if(val == nil) then return nil end
+    if(not cmd.round) then
+        
+    end
+    return nil
+end
+
+Interp.handler = {
+    G04 = function(cmd, interp)
+        sleep(interp:getParam("P"))
+    end,
+    G10 = function(cmd, interp)
+        local L = interp:getParam("L")
+        local P = interp:getParam("P", true)
+        local validVal = {
+            [2] = true, --WCS
+        }
+        if(not validVal[L]) then
+            interp:halt(GCode.haltType.MACHINE, "Invalid L value")
+            return
+        end
+        if(not P or P < 1 or P > 6) then
+            interp:halt(GCode.haltType.MACHINE, "Invalid P value")
+            return
+        end
+    end
+}
 
 --Validation
 
-function Interp.isValidArg(cmd, argLetter)
-    if(cmd.optArgs and #cmd.optArgs > 0) then
-        if(Util.tableContains(cmd.optArgs, argLetter)) then return true end
-    end
-    if(cmd.reqArgs and #cmd.reqArgs > 0) then
-        if(Util.tableContains(cmd.reqArgs, argLetter)) then return true end
-    end
-    return false
-end
-
-function Interp.verifyArgs(cmd, args)
+function Interp.getMissingArg(cmd, args)
     if(cmd.reqArgs and #cmd.reqArgs > 0) then
         for k, v in pairs(cmd.reqArgs) do
-            if(not Util.tableContains(args)) then end
+            if(not args[v.c]) then return v end
         end
     end
-end
-
-function Interp.validLetter(l)
-    if(l == nil or #l ~= 1) then return false end
-    return l == "M" or l == "G" or GCode.validParam[l] ~= nil
+    return nil
 end
 
 --Validates that the command follows proper syntax
@@ -68,7 +133,7 @@ end
 function Interp.getBadSyntaxIndex(line)
     if(line == nil) then return nil end
     if(#line == 0) then return nil end
-
+    --Syntax validation
     local patterns = {
         "^[^" .. GCode.validParamsStr .."]",                --Starts with a non valid char (Must start with a letter)
         "[^%d" .. GCode.validLettersStr .. "%.]",            --Match any that are NOT digit, valid, or dot
@@ -82,7 +147,110 @@ function Interp.getBadSyntaxIndex(line)
         local idx = string.find(line, p)
         if(idx and idx < lowestIdx) then lowestIdx = idx end
     end
+
+    --Return if syntax error
+    if(lowestIdx) then return lowestIdx end
+
     return lowestIdx
+end
+
+function Interp.verifyParam(p, val)
+    if(val == nil) then return true end
+    if(p.float or p.round) then return true end
+    local _, decPart = math.modf(val)
+    if(decPart > 0) then return false end
+    return true
+end
+
+function Interp.verifyParams(cmd, params)
+    if(not params) then return true end
+    for k, v in pairs(cmd.reqArgs) do
+        if(not Interp.verifyParam(v, params[v.c])) then return false end
+    end
+    for k, v in pairs(cmd.optArgs) do
+        if(not Interp.verifyParam(v, params[v.c])) then return false end
+    end
+    return true
+end
+
+function Interp.verifySubProgCall(parsed)
+    local usedParams = {}
+
+    --Helper to add all used params
+    local addParams = function(cmd)
+        if(cmd.str == "M98") then return end
+        if(cmd.reqArgs) then
+            for k, v in pairs(cmd.reqArgs) do
+                usedParams[v.c] = true
+            end
+        end
+        if(cmd.optArgs) then
+            for k, v in pairs(cmd.optArgs) do
+                usedParams[v.c] = true
+            end
+        end
+    end
+
+    --Add all params
+    for _, cmd in pairs(parsed.nonModal) do
+        addParams(cmd)
+    end
+    for _, cmd in pairs(parsed.modal) do
+        addParams(cmd)
+    end
+
+    --Check if there's any params that cmds use
+    for k, v in pairs(parsed.args) do
+        if(usedParams[k]) then return false end
+    end
+
+    return true
+end
+
+function Interp.isBadLine(parsed)
+    local retObj = {
+        badCmd = nil,
+        failureStr = ""
+    }
+    --Check param values
+    local cmdFn = function(cmd)
+        local missingArg = Interp.getMissingArg(cmd, parsed.args)
+        if(missingArg) then
+            retObj.badCmd = cmd
+            retObj.failureStr = "Missing '" .. missingArg.c .. "' for cmd " .. cmd.str
+        elseif(not Interp.verifyParams(cmd, parsed.args)) then
+            retObj.badCmd = cmd
+            retObj.failureStr = GCode.error.PARAM_BAD_VAL
+        end
+    end
+    local hasSubCall = false
+    local hasSubRet = false
+    for k, v in pairs(parsed.nonModal) do
+        if(v.str == "M98") then hasSubCall = true
+        elseif(v.str == "M99") then hasSubRet = true
+        else
+            cmdFn(v)
+            if(retObj.badCmd) then return retObj end
+        end
+    end
+    for k, v in pairs(parsed.modal) do
+        cmdFn(v)
+        if(retObj.badCmd) then return retObj end
+    end
+    --Verify subprogram call
+    if(hasSubCall and hasSubRet) then
+        retObj.badCmd = "M99"
+        retObj.failureStr = GCode.error.SUBPROG_CALL_RETURN
+        return retObj
+    end
+
+    if(hasSubCall) then
+        if(not Interp.verifySubProgCall(parsed)) then
+            retObj.badCmd = "M98"
+            retObj.failureStr = GCode.error.SUBPROG_PARAM
+        end
+    end
+    return retObj
 end
 
 --Parsing
@@ -91,8 +259,15 @@ end
 function Interp.cleanLine(line)
     local clean = ""
     if(line ~= nil) then 
-        clean = string.gsub(line, "%s", "") --Rm WS
-        clean = string.gsub(clean, "%(.-%)", "") --Rm comments
+        clean = line
+        if(clean:sub(1, 1) == "/") then return "" end --Skip 'block-skip' blocks for now
+        clean = line:gsub("%s", "") --Rm WS
+        clean = clean:gsub("%(.-%)", "") --Rm comments
+        --Rm everything after EOB char
+        local semiCPos = clean:find(";", 1, true)
+        if(semiCPos) then
+            clean = clean:sub(1, semiCPos-1)
+        end
     end
     return clean
 end
@@ -129,7 +304,7 @@ function Interp.parseLine(line)
             if(cmd.modal) then
                 retObj.modal[cmd.modal] = cmd
             else
-                table.insert(retObj.nonModal, cmd)
+                table.insert(retObj.nonModal)
             end
         else --Parameter
             if(GCode.allCmdLettersStr:find(curLetter, 1, true)) then
@@ -137,7 +312,7 @@ function Interp.parseLine(line)
                 retObj.failureStr = GCode.error.CMD_UNKNOWN
                 return
             end
-            retObj.args[curLetter] = pString:sub(curPartStart+1, i-1)
+            retObj.args[curLetter] = tonumber(pString:sub(curPartStart+1, i-1))
         end
     end
 
@@ -152,32 +327,137 @@ function Interp.parseLine(line)
     end
 
     loopFn(#pString + 1) --Add last cmd
-    
+
     return retObj
 end
 
-function Interp:read(fileName)
+function Interp:execCmd(cmd)
+    if(not cmd) then return end
+    --Update modal
+    if(cmd.modal) then
+        self.state.modal[cmd.modal] = cmd
+    end
+    --Exec
+    local handler = Interp.handler[cmd.str]
+    if(handler) then handler(cmd, self) end
+end
+
+function Interp:handleNonModal()
+    local cmds = self.curBlock.nonModal
+    if(cmds == nil or #cmds == 0) then return end
+    local handler = nil
+    for _, cmd in pairs(cmds) do
+        self:execCmd(cmd)
+        if(self.state.halted) then return end
+    end
+end
+
+function Interp:handleModal()
+    local order = {
+        GCode.modal.WCS,
+        GCode.modal.PLANE,
+        GCode.modal.SCALE,
+        GCode.modal.DISTANCE,
+        GCode.modal.MOTION,
+        GCode.modal.PROG_FLOW
+    }
+    local cmd = nil
+    local handler = nil
+    for _, modal in pairs(order) do
+        cmd = self.curBlock.modal[modal]
+        self:execCmd(cmd)
+        if(self.state.halted) then return end
+    end
+end
+
+function Interp:execLine(parsedLine)
+    if(parsedLine == nil) then return end
+    self.curBlock = parsedLine
+    self:handleNonModal()
+    if(self.state.halted) then return end
+    self:handleModal()
+    if(self.state.halted) then return end
+    self:calcTarget()
+    self:handleMove()
+    self:updateRegisters()
+end
+
+function Interp:lineFn(line)
+    if(not line or #line == 0) then return end
+    --Parse
+    local parsed = Interp.parseLine(line)
+    if(parsed.badIdx ~= nil) then
+        local idx = parsed.badIdx
+        if(idx == 0) then idx = nil end
+        self:halt(GCode.haltType.MACHINE, parsed.failureStr, idx)
+        return
+    end
+    --Verify
+    local bad = Interp.isBadLine(parsed)
+    if(bad) then
+        self:halt(GCode.haltType.MACHINE, bad.failureStr)
+        return
+    end
+    --Exec
+    self:execLine(parsed)
+end
+
+function Interp:_getCurProg()
+    return self.programStack[#self.programStack]
+end
+
+function Interp:_incLineNum(n)
+    if(not n) then n = 1 end
+    local prog = self:_getCurProg()
+    prog.lineNum = prog.lineNum + n
+end
+
+function Interp:_pushProg(name, lineNum)
+    table.insert(self.programStack, {name = name, lineNum = lineNum or 1})
+end
+
+function Interp:_popProg()
+    table.remove(self.programStack)
+end
+
+function Interp:read(fileName, perLineFunc)
+    self:_pushProg(fileName)
     if(fileName == nil or #fileName == 0 or not fs.exists(fileName)) then
-        self:halt(GCode.error.FILE_NX)
+        self:halt(GCode.haltType.MACHINE, GCode.error.FILE_NX)
         return
     end
     local file = fs.open(fileName)
     if(file == nil) then
-        self:halt(GCode.error.FILE_OPEN)
+        self:halt(GCode.haltType.MACHINE, GCode.error.FILE_OPEN)
         return
     end
+
+    --Skip program ident header
+    self:_incLineNum()
     local line = file.readLine()
-    local parsed = nil
+    if(line and line:sub(1, 1) == "O") then
+        line = file.readLine()
+        self:_incLineNum()
+    end
+
+    --Exec
     while line do
-        if(#line > 1) then
-            parsed = Interp.parseLine(line)
-            if(parsed.badIdx) then
-                self:halt(parsed.failureStr, parsed.badIdx)
-                file.close()
-                return
-            end
-            line = file.readLine()
+        perLineFunc(line)
+        if(self.state.halted == GCode.haltType.MACHINE or self.state.halted == GCode.haltType.STOP) then --Machine halted, terminate
+            file.close()
+            self:_terminate()
+            return
+        elseif(self.state.halted == GCode.haltType.WAIT) then
+            local curProg = self:_getCurProg()
+            print("(" .. curProg.name .. ")")
+            print("Halt & Wait called on line " .. curProg.lineNum)
+            write("Press 'Enter' to continue...")
+            read() --Wait for user input
+            self:resetHalt()
         end
+        self:_incLineNum()
+        line = file.readLine()
     end
     file.close()
+    self:_popProg()
 end

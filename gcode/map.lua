@@ -47,7 +47,6 @@ GCode = {
         PLANE = "PLANE",
         DISTANCE = "DISTANCE",
         SCALE = "SCALE",
-        CANNED = "CANNED",
         WCS = "WCS",
         --M
         PROG_FLOW = "PROG_FLOW"
@@ -68,7 +67,7 @@ GCode = {
         CIRC_CCW = "CIRC_CCW",
         DRILL = "DRILL"
     },
-    validParam = { --Params that may be used by commands, any others are ignored
+    param = { --Params that may be used by commands, any others are ignored
         --Coords
         X = "X",
         Y = "Y",
@@ -81,26 +80,29 @@ GCode = {
         T = "T",
         Q = "Q",
         P = "P", --Dwell time
-        L = "L", --[[
-            validVal = {
-                [2] = true, --Set absolute pos
-                [3] = true, --Set dimension
-                [10] = true, --Define tool slot
-                [20] = true --Set heading
-            }]]
+        L = "L", 
     },
     error = {
         GRID = "Grid violation",
         SYNTAX = "Invalid syntax",
+        PARAM_BAD_VAL = "Bad value for parameter",
         CMD_UNKNOWN = "Unknown command",
-        FILE_NAME = "Can't find file",
+        FILE_NX = "Can't find file",
         FILE_OPEN = "Can't open file",
+        SUBPROG_PARAM = "Subprogram call with params that are used by another command in the block",
+        SUBPROG_CALL_RETURN = "Can't call subprogram and return from subprogram in same block",
+    },
+    haltType = {
+        NONE = 0,
+        MACHINE = 1,    --Called by the machine (terminates)
+        STOP = 2,       --Stops reading program and terminates
+        WAIT = 3        --Halts and waits for user input
     }
 }
 
 GCode.allParamsStr = ""
 
-for p, v in pairs(GCode.validParam) do
+for p, v in pairs(GCode.param) do
     GCode.allParamsStr = GCode.allParamsStr .. p
 end
 
@@ -112,46 +114,73 @@ GCode.code = {
     G00 = {
         str = "G00",
         desc = "Rapid move", --No cutting
-        optArgs = {"X", "Y", "Z"},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}
+        },
         modal = GCode.modal.MOTION
     },
     G01 = {
         str = "G01",
         desc = "Linear interpolation",
-        optArgs = {"X", "Y", "Z"},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}
+        },
         modal = GCode.modal.MOTION
     },
     G02 = {
         str = "G02",
         desc = "Circular interpolation (CW)",
-        optArgs = {"X", "Y", "Z"},
-        reqArgs = {"R"},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}
+        },
+        reqArgs = {{c = "R", float = true, round = true}},
         modal = GCode.modal.MOTION
     },
     G03 = {
         str = "G03",
         desc = "Circular interpolation (CCW)",
-        optArgs = {"X", "Y", "Z"},
-        reqArgs = {"R"},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}
+        },
+        reqArgs = {{c = "R", float = true, round = true}},
         modal = GCode.modal.MOTION
     },
-    G04 = {
+    G04 = { --
         str = "G04",
         desc = "Dwell sec",
-        reqArgs = {"P"}
+        reqArgs = {{c = "P", float = true}}
     },
     G10 = {
         str = "G10",
         desc = "Set params",
-        reqArgs = {"L"},
-        optArgs = {"X", "Y", "Z", "P", "T", "Q"}
+        reqArgs = {{c = "L"}},
+        optArgs = { 
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true},
+            {c = "P"}
+        }
         --No modal
     },
     G13 = {
         str = "G13",
         desc = "Circular Pocket Milling (CCW)",
-        reqArgs = {"K"},
-        optArgs = {"X", "Y", "Z", "I", "Q"},
+        reqArgs = {{c = "K", float = true, round = true}},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}, 
+            {c = "I", float = true, round = true}, 
+            {c = "Q", float = true, round = true},
+        },
         modal = GCode.modal.MOTION
     },
     G17 = {
@@ -182,8 +211,16 @@ GCode.code = {
     G51 = {
         str = "G51",
         desc = "Scale",
-        optArgs = {"X", "Y", "Z", "P", "I", "J", "K"},
-         modal = GCode.modal.SCALE
+        optArgs = {
+            {c = "X", float = true}, 
+            {c = "Y", float = true}, 
+            {c = "Z", float = true},
+            {c = "P", float = true}, 
+            {c = "I", float = true}, 
+            {c = "J", float = true},
+            {c = "K", float = true},
+        },
+        modal = GCode.modal.SCALE
     },
     G54 = {
         str = "G54",
@@ -218,7 +255,11 @@ GCode.code = {
     G81 = {
         str = "G81",
         desc = "Drilling cycle",
-        optArgs = {"X", "Y", "Z"},
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true}, 
+        },
         modal = GCode.modal.MOTION
     },
     G90 = {
@@ -239,18 +280,26 @@ GCode.code = {
     G98 = {
         str = "G98",
         desc = "Return to initial point",
-        modal = GCode.modal.CANNED
+        modal = GCode.modal.MOTION
     },
     G99 = {
         str = "G99",
         desc = "Return to R point",
-        modal = GCode.modal.CANNED
+        modal = GCode.modal.MOTION
     },
     G150 = {
         str = "G150",
         desc = "Rectangular Pocket Milling",
-        reqArgs = {"I", "K"}, -- width and length
-        optArgs = {"X", "Y", "Z", "Q"},
+        reqArgs = {
+            {c = "I", float = true, round = true}, 
+            {c = "K", float = true, round = true}, 
+        }, -- width and length
+        optArgs = {
+            {c = "X", float = true, round = true}, 
+            {c = "Y", float = true, round = true}, 
+            {c = "Z", float = true, round = true},
+            {c = "Q", float = true, round = true},
+        },
         modal = GCode.modal.MOTION
     },
     M00 = {
@@ -266,7 +315,7 @@ GCode.code = {
     M06 = {
         str = "M06",
         desc = "Tool change",
-        reqArgs = {"T"}
+        reqArgs = {{c = "T"}}
         --No modal
     },
     M30 = {
